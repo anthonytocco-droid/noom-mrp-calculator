@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>MRP Reorder Calculator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a1a2e; min-height: 100vh; }
+
+  .page-header { background: #1a1a2e; color: #fff; padding: 15px 28px; display: flex; align-items: center; justify-content: space-between; }
+  .page-header h1 { font-size: 16px; font-weight: 700; }
+  .page-header a  { color: #7c9dc5; font-size: 11px; text-decoration: none; }
+  .page-header a:hover { color: #a8c4e0; }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 22px 18px; }
+
+  .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); margin-bottom: 18px; overflow: hidden; }
+  .card-head { padding: 12px 18px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .card-head h2 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #666; white-space: nowrap; }
+  .card-head-right { display: flex; align-items: center; gap: 8px; }
+
+  .collapse-btn { background: none; border: none; cursor: pointer; color: #aaa; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
+  .collapse-btn:hover { background: #f5f5f5; color: #555; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #999; padding: 8px 10px; border-bottom: 2px solid #eee; background: #fafafa; white-space: nowrap; }
+  th.center, td.center { text-align: center; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f2f2f2; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: #fafbff; }
+
+  input[type=text], input[type=number] { border: 1px solid #e2e8f0; border-radius: 5px; padding: 4px 7px; font-size: 12px; width: 100%; outline: none; font-family: inherit; }
+  input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-inner-spin-button { opacity: 0.4; }
+
+  .btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 11px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; border: none; font-family: inherit; }
+  .btn:hover { opacity: 0.85; }
+  .btn-ghost  { background: #fff; border: 1px solid #ddd; color: #555; }
+  .btn-remove { background: none; border: none; color: #ddd; font-size: 13px; cursor: pointer; padding: 1px 5px; border-radius: 3px; line-height: 1; }
+  .btn-remove:hover { background: #fee2e2; color: #b91c1c; }
+
+  .flag { display: inline-flex; align-items: center; gap: 3px; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .flag-ok       { background: #dcfce7; color: #15803d; }
+  .flag-order    { background: #fee2e2; color: #b91c1c; }
+  .flag-soon     { background: #fef3c7; color: #92400e; }
+  .flag-transfer { background: #ede9fe; color: #6d28d9; }
+  .flag-na       { background: #f1f5f9; color: #94a3b8; }
+
+  .dos { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+  .dos-crit { background: #fee2e2; color: #b91c1c; }
+  .dos-warn { background: #fef3c7; color: #92400e; }
+  .dos-ok   { background: #dcfce7; color: #15803d; }
+
+  tr.row-order > td { background: #fff8f8 !important; }
+  tr.row-soon  > td { background: #fffbeb !important; }
+
+  .tab-bar { display: flex; border-bottom: 1px solid #eee; padding: 0 18px; background: #fff; overflow-x: auto; }
+  .tab { padding: 10px 15px; font-size: 12px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; color: #888; white-space: nowrap; flex-shrink: 0; }
+  .tab.active { color: #1a1a2e; border-bottom-color: #3b82f6; }
+  .tab:hover:not(.active) { color: #555; }
+
+  .summary-bar { display: flex; border-bottom: 1px solid #eee; overflow-x: auto; }
+  .summary-item { flex: 1; min-width: 130px; padding: 13px 18px; border-right: 1px solid #eee; }
+  .summary-item:last-child { border-right: none; }
+  .s-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #aaa; margin-bottom: 3px; }
+  .s-val   { font-size: 20px; font-weight: 700; line-height: 1; }
+  .s-sub   { font-size: 10px; color: #bbb; margin-top: 2px; }
+
+  .scroll-wrap { overflow-x: auto; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+  .comp-sku  { font-size: 10px; color: #bbb; }
+  .action-text { font-size: 11px; }
+  .action-order    { color: #b91c1c; font-weight: 700; }
+  .action-transfer { color: #6d28d9; }
+  .action-none     { color: #ccc; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>MRP Reorder Calculator</h1>
+  <a href="/workback">← Workback Calculator</a>
+</div>
+
+<div class="container">
+
+  <div class="two-col">
+    <!-- SKU Forecast -->
+    <div class="card">
+      <div class="card-head">
+        <h2>SKU Weekly Forecast</h2>
+        <div class="card-head-right">
+          <span style="font-size:10px;color:#aaa;">units / week</span>
+          <button class="btn btn-ghost" onclick="addSku()">+ Add SKU</button>
+        </div>
+      </div>
+      <div class="scroll-wrap">
+        <table>
+          <thead><tr>
+            <th>SKU Name</th>
+            <th style="width:110px;">SKU Code</th>
+            <th style="width:130px;">Weekly Forecast</th>
+            <th style="width:28px;"></th>
+          </tr></thead>
+          <tbody id="skuBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Flag guide -->
+    <div class="card">
+      <div class="card-head"><h2>Flag Guide</h2></div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <span class="flag flag-order" style="flex-shrink:0;">🔴 Order Now</span>
+          <span style="font-size:11px;color:#555;line-height:1.4;">On-hand ≤ reorder point (lead time × daily demand). Place PO immediately.</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <span class="flag flag-soon" style="flex-shrink:0;">🟡 Plan Order</span>
+          <span style="font-size:11px;color:#555;line-height:1.4;">On-hand ≤ 1.5× reorder point. Order within the week to avoid stockout.</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <span class="flag flag-transfer" style="flex-shrink:0;">🔄 Transfer</span>
+          <span style="font-size:11px;color:#555;line-height:1.4;">One location low while another has surplus. Move inventory before ordering new stock.</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <span class="flag flag-ok" style="flex-shrink:0;">✓ OK</span>
+          <span style="font-size:11px;color:#555;line-height:1.4;">Sufficient stock on hand. No action needed.</span>
+        </div>
+        <div style="margin-top:4px;padding-top:10px;border-top:1px solid #eee;font-size:10px;color:#aaa;line-height:1.8;">
+          <strong style="color:#888;">Reorder Point</strong> = daily demand × lead time (days)<br/>
+          <strong style="color:#888;">MOQ</strong> = 4 weeks of demand (1 calendar month)<br/>
+          <strong style="color:#888;">Days of Supply</strong> = on hand ÷ daily demand
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOM -->
+  <div class="card">
+    <div class="card-head">
+      <h2>Bill of Materials &amp; Lead Times</h2>
+      <div class="card-head-right">
+        <span style="font-size:10px;color:#aaa;">Hover column headers for full SKU name · SKU codes shown</span>
+        <button class="btn btn-ghost" onclick="addComponent()">+ Add Component</button>
+        <button class="collapse-btn" id="bomToggle" onclick="toggleSection('bomContent','bomToggle')">▲</button>
+      </div>
+    </div>
+    <div id="bomContent" class="scroll-wrap">
+      <table><thead id="bomHead"></thead><tbody id="bomBody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- Inventory -->
+  <div class="card">
+    <div class="card-head">
+      <h2>Current Inventory by Location</h2>
+      <div class="card-head-right">
+        <span style="font-size:10px;color:#aaa;">units on hand</span>
+        <button class="collapse-btn" id="invToggle" onclick="toggleSection('invContent','invToggle')">▲</button>
+      </div>
+    </div>
+    <div id="invContent" class="scroll-wrap">
+      <table>
+        <thead><tr>
+          <th>Component</th>
+          <th style="width:110px;" class="center">SKU Code</th>
+          <th style="width:130px;">TMC</th>
+          <th style="width:130px;">Optio CA</th>
+          <th style="width:130px;">Optio Columbus</th>
+          <th style="width:90px;">Total</th>
+        </tr></thead>
+        <tbody id="invBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="card">
+    <div class="card-head"><h2>Reorder Dashboard</h2></div>
+    <div class="tab-bar">
+      <div class="tab active" onclick="setTab('all',this)">All Locations</div>
+      <div class="tab" onclick="setTab('TMC',this)">TMC</div>
+      <div class="tab" onclick="setTab('optioCA',this)">Optio CA</div>
+      <div class="tab" onclick="setTab('optioColumbus',this)">Optio Columbus</div>
+    </div>
+    <div id="dashBody"></div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  State — pre-loaded from inflow BOMs.xlsx
+// ═══════════════════════════════════════════════════
+let _skuId = 15, _compId = 36;
+
+let skus = [
+  { id:1,  name:"OPTIO - GLP1 Tirzepatide Dispense",    code:"KIT-OPT-TIR-STD", weeklyForecast:0 },
+  { id:2,  name:"OPTIO - GLP1 Weight Dispense",          code:"KIT-OPT-GLP-STD", weeklyForecast:0 },
+  { id:3,  name:"TMC - GLP1 Proactive Health Dispense",  code:"KIT-TMC-GLP-PRO", weeklyForecast:0 },
+  { id:4,  name:"TMC - GLP1 Weight Dispense",            code:"KIT-TMC-GLP-STD", weeklyForecast:0 },
+  { id:5,  name:"TPH - HRT Dispense",                    code:"KIT-TPH-HRT",     weeklyForecast:0 },
+  { id:6,  name:"TPH - Liraglutide Trial",               code:"KIT-TPH-LIR",     weeklyForecast:0 },
+  { id:7,  name:"TPH - Oral Dispense 20 Dram",           code:"KIT-TPH-ORA-20",  weeklyForecast:0 },
+  { id:8,  name:"TPH - Oral Dispense 60 Dram",           code:"KIT-TPH-ORA-60",  weeklyForecast:0 },
+  { id:9,  name:"WELLSFL - GLP1 Weight Dispense",        code:"KIT-WFL-GLP-STD", weeklyForecast:0 },
+  { id:10, name:"WELLSTX - GLP1 Weight Dispense",        code:"KIT-WTX-GLP-STD", weeklyForecast:0 },
+  { id:11, name:"TMC - Tirzepatide Dispense",            code:"KIT-TMC-TIR-STD", weeklyForecast:0 },
+  { id:12, name:"Kitted Supplement - Men's Metabolic",   code:"KIT-SUP-MET-MEN", weeklyForecast:0 },
+  { id:13, name:"Kitted Supplement - Women's Metabolic", code:"KIT-SUP-MET-WOM", weeklyForecast:0 },
+  { id:14, name:"Summer Packout - GLP1 Weight Dispense", code:"KIT-GLP-SUM",     weeklyForecast:0 },
+];
+
+let components = [
+  { id:1,  name:"100 Unit Syringe",                        code:"ANC-SYR-100",     leadTimeDays:35 },
+  { id:2,  name:"Brown Corrugate Box - GLP",               code:"PKG-BOX-001",     leadTimeDays:35 },
+  { id:3,  name:"INTL Thermal Bag Large 2 Sided Print",    code:"PKG-BAG-002",     leadTimeDays:28 },
+  { id:4,  name:"Creative Ice 16 oz",                      code:"ANC-ICE-16C",     leadTimeDays:21 },
+  { id:5,  name:"Tirzepatide Booklet",                     code:"COL-TRZ-001",     leadTimeDays:21 },
+  { id:6,  name:"Orange Blister Box w/ 2R Tray",           code:"PKG-BOX-02R",     leadTimeDays:35 },
+  { id:7,  name:"50 Unit Syringe",                         code:"ANC-SYR-050",     leadTimeDays:35 },
+  { id:8,  name:"Optio GLP1 Booklet",                      code:"COL-OPT-001",     leadTimeDays:21 },
+  { id:9,  name:"Blue Rett Box",                           code:"PKG-RET-002",     leadTimeDays:35 },
+  { id:10, name:"GLP1 Booklet - Microdose + Personalized", code:"COL-GLP-001",     leadTimeDays:21 },
+  { id:11, name:"Fidelity Ice 16 oz",                      code:"ANC-ICE-16F",     leadTimeDays:21 },
+  { id:12, name:"4x6 Dual Dose Card - 50/100 unit",        code:"COL-GLP-050",     leadTimeDays:21 },
+  { id:13, name:"HRT Booklet",                             code:"COL-HRT-001",     leadTimeDays:21 },
+  { id:14, name:"Noom Bubble Mailer",                      code:"PKG-BUB-001",     leadTimeDays:21 },
+  { id:15, name:"Secure Packer Custom Cap",                code:"ANC-CAP-001",     leadTimeDays:21 },
+  { id:16, name:"Liraglutide Booklet",                     code:"COL-LIR-001",     leadTimeDays:21 },
+  { id:17, name:"Pen Needles",                             code:"ANC-PEN-432",     leadTimeDays:21 },
+  { id:18, name:"Metformin Booklet",                       code:"COL-MET-001",     leadTimeDays:21 },
+  { id:19, name:"Secure Packer 20 Dram",                   code:"ANC-DRM-020",     leadTimeDays:28 },
+  { id:20, name:"Secure Packer 60 Dram",                   code:"ANC-DRM-060",     leadTimeDays:28 },
+  { id:21, name:"4x6 How To Measure Your Dose Card",       code:"COL-GLP-046",     leadTimeDays:21 },
+  { id:22, name:"Supplement Corrugate Outer Shipper",      code:"PKG-SUP-OUT",     leadTimeDays:35 },
+  { id:23, name:"Supplement Collapsible Box",              code:"PKG-SUP-BOX",     leadTimeDays:35 },
+  { id:24, name:"Supplement Corrugated Board Insert",      code:"PKG-SUP-INS",     leadTimeDays:28 },
+  { id:25, name:"Bagged Metabolic AM - Men's",             code:"ANC-SUP-MEN-AM",  leadTimeDays:42 },
+  { id:26, name:"Bagged Metabolic PM - Men's",             code:"ANC-SUP-MEN-PM",  leadTimeDays:42 },
+  { id:27, name:"Frosted Glass Bottle - Men's AM",         code:"ANC-SUP-BOT-MAM", leadTimeDays:42 },
+  { id:28, name:"Frosted Glass Bottle - Men's PM",         code:"ANC-SUP-BOT-MPM", leadTimeDays:42 },
+  { id:29, name:"Bagged Metabolic AM - Women's",           code:"ANC-SUP-WOM-AM",  leadTimeDays:42 },
+  { id:30, name:"Bagged Metabolic PM - Women's",           code:"ANC-SUP-WOM-PM",  leadTimeDays:42 },
+  { id:31, name:"Frosted Glass Bottle - Women's AM",       code:"ANC-SUP-BOT-WAM", leadTimeDays:42 },
+  { id:32, name:"Frosted Glass Bottle - Women's PM",       code:"ANC-SUP-BOT-WPM", leadTimeDays:42 },
+  { id:33, name:"Kangaroo Mailer",                         code:"PKG-ROO-001",     leadTimeDays:28 },
+  { id:34, name:"Orange Bubble Mailer",                    code:"PKG-BUB-002",     leadTimeDays:21 },
+  { id:35, name:"Summer Brown Corrugate Box - GLP",        code:"PKG-BOX-002",     leadTimeDays:35 },
+];
+
+let bom = {
+  1:  {1:1,2:1,3:1,4:1,5:1},
+  2:  {6:1,7:1,2:1,3:1,4:1,8:1},
+  3:  {7:1,4:1,9:1,3:1,2:1,10:1,6:1},
+  4:  {7:1,11:1,9:1,3:1,2:1,10:1,12:1},
+  5:  {13:1,14:1,15:1},
+  6:  {16:1,17:1},
+  7:  {18:1,19:1,15:1,14:1},
+  8:  {18:1,20:1,15:1,14:1},
+  9:  {1:1,11:1,9:1,3:1,2:1,10:1,21:1},
+  10: {1:1,4:1,9:1,3:1,2:1,10:1,21:1},
+  11: {4:1,9:1,3:1,2:1,5:1,12:1,1:1},
+  12: {22:1,23:1,24:1,25:1,26:1,27:1,28:1},
+  13: {22:1,23:1,24:1,29:1,30:1,31:1,32:1},
+  14: {7:1,33:1,34:1,35:1,10:1,12:1},
+};
+
+let inv = {};
+components.forEach(c => { inv[c.id] = {TMC:0,optioCA:0,optioColumbus:0}; });
+
+let activeTab = 'all';
+const LOCS = ['TMC','optioCA','optioColumbus'];
+const LOC_LABELS = {TMC:'TMC', optioCA:'Optio CA', optioColumbus:'Optio Columbus'};
+
+// ═══════════════════════════════════════════════════
+//  Calculations
+// ═══════════════════════════════════════════════════
+function calcComp(comp) {
+  let weeklyDemand = 0;
+  skus.forEach(s => { weeklyDemand += (s.weeklyForecast||0) * ((bom[s.id]||{})[comp.id]||0); });
+  const daily = weeklyDemand / 7;
+  const rop   = Math.ceil(daily * comp.leadTimeDays);
+  const moq   = Math.ceil(weeklyDemand * 4);
+  const ci    = inv[comp.id] || {TMC:0,optioCA:0,optioColumbus:0};
+  const total = LOCS.reduce((s,l)=>s+(ci[l]||0),0);
+  const totalDoS = daily>0 ? total/daily : null;
+  const locDoS = {};
+  LOCS.forEach(l => { locDoS[l] = daily>0 ? (ci[l]||0)/daily : null; });
+
+  let flag = 'ok';
+  if (daily===0) flag='na';
+  else if (total<=rop) flag='order';
+  else if (total<=rop*1.5) flag='soon';
+  else {
+    const low  = LOCS.filter(l=>locDoS[l]!==null&&locDoS[l]<comp.leadTimeDays);
+    const high = LOCS.filter(l=>locDoS[l]!==null&&locDoS[l]>comp.leadTimeDays*2&&(ci[l]||0)>0);
+    if (low.length&&high.length) flag='transfer';
+  }
+
+  const locFlags = {};
+  LOCS.forEach(l => {
+    if (daily===0) { locFlags[l]='na'; return; }
+    const donors = LOCS.filter(o=>o!==l&&locDoS[o]!==null&&locDoS[o]>comp.leadTimeDays*2&&(ci[o]||0)>0);
+    if (locDoS[l]<comp.leadTimeDays&&donors.length) locFlags[l]='transfer';
+    else if (locDoS[l]<comp.leadTimeDays)           locFlags[l]='order';
+    else if (locDoS[l]<comp.leadTimeDays*1.5)       locFlags[l]='soon';
+    else                                            locFlags[l]='ok';
+  });
+
+  const transfers = [];
+  LOCS.forEach(toLoc => {
+    if (locFlags[toLoc]!=='transfer') return;
+    const need = rop-(ci[toLoc]||0);
+    LOCS.filter(l=>l!==toLoc&&locDoS[l]>comp.leadTimeDays*2).forEach(donor=>{
+      const surplus = Math.floor((ci[donor]||0)-daily*comp.leadTimeDays*1.5);
+      if (surplus>0) transfers.push({from:donor,to:toLoc,qty:Math.min(need,surplus)});
+    });
+  });
+
+  const suggestedQty = (flag==='order'||flag==='soon') ? Math.max(moq,rop+moq-total) : 0;
+  return {comp,weeklyDemand,daily,rop,moq,totalOnHand:total,totalDoS,locDoS,locFlags,flag,suggestedQty,ci,transfers};
+}
+
+// ═══════════════════════════════════════════════════
+//  Formatting
+// ═══════════════════════════════════════════════════
+function fn(n) { if(n===null||n===undefined||isNaN(n)) return '—'; return Math.round(n).toLocaleString(); }
+function dosBadge(d,lt) {
+  if(d===null||d===undefined) return '<span style="color:#ccc;">—</span>';
+  if(!isFinite(d)) return '<span class="dos dos-ok">∞</span>';
+  const v=Math.round(d), cls=v<lt?'dos-crit':v<lt*1.5?'dos-warn':'dos-ok';
+  return `<span class="dos ${cls}">${v}d</span>`;
+}
+const FC={ok:['flag-ok','✓ OK'],order:['flag-order','🔴 Order Now'],soon:['flag-soon','🟡 Plan Order'],transfer:['flag-transfer','🔄 Transfer'],na:['flag-na','—']};
+function fh(f){const[cls,lbl]=FC[f]||FC.na;return `<span class="flag ${cls}">${lbl}</span>`;}
+function rc(f){return f==='order'?'row-order':f==='soon'?'row-soon':'';}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+function toggleSection(cid,bid){
+  const el=document.getElementById(cid),btn=document.getElementById(bid);
+  const hide=el.style.display!=='none';
+  el.style.display=hide?'none':'';
+  btn.textContent=hide?'▼':'▲';
+}
+
+// ═══════════════════════════════════════════════════
+//  SKU table
+// ═══════════════════════════════════════════════════
+function renderSkus(){
+  document.getElementById('skuBody').innerHTML=skus.map(s=>`
+    <tr>
+      <td><input type="text" value="${esc(s.name)}" onchange="updateSku(${s.id},'name',this.value)"/></td>
+      <td><input type="text" value="${esc(s.code||'')}" onchange="updateSku(${s.id},'code',this.value)" style="font-size:10px;color:#888;"/></td>
+      <td><input type="number" value="${s.weeklyForecast||''}" min="0" placeholder="0"
+            onchange="updateSku(${s.id},'weeklyForecast',parseFloat(this.value)||0)" style="width:115px;"/></td>
+      <td><button class="btn-remove" onclick="removeSku(${s.id})">✕</button></td>
+    </tr>`).join('');
+}
+function addSku(){const id=_skuId++;skus.push({id,name:'New SKU',code:'',weeklyForecast:0});bom[id]={};renderAll();}
+function removeSku(id){if(skus.length<=1)return;skus=skus.filter(s=>s.id!==id);delete bom[id];renderAll();}
+function updateSku(id,f,v){const s=skus.find(s=>s.id===id);if(s){s[f]=v;renderDash();}}
+
+// ═══════════════════════════════════════════════════
+//  BOM table
+// ═══════════════════════════════════════════════════
+function renderBom(){
+  const skuCols=skus.map(s=>`<th class="center" style="width:60px;" title="${esc(s.name)}">${esc(s.code||s.name.substring(0,10))}</th>`).join('');
+  document.getElementById('bomHead').innerHTML=`<tr><th>Component</th><th style="width:110px;" class="center">SKU Code</th><th style="width:110px;">Lead Time (days)</th>${skuCols}<th style="width:28px;"></th></tr>`;
+  document.getElementById('bomBody').innerHTML=components.map(c=>{
+    const si=skus.map(s=>{
+      const q=(bom[s.id]||{})[c.id]||0;
+      return `<td class="center"><input type="number" value="${q||''}" min="0" placeholder="—"
+        onchange="updateBom(${s.id},${c.id},parseFloat(this.value)||0)"
+        style="width:50px;text-align:center;padding:3px 4px;"/></td>`;
+    }).join('');
+    return `<tr>
+      <td style="font-weight:600;white-space:nowrap;">${esc(c.name)}</td>
+      <td class="center"><span class="comp-sku">${esc(c.code)}</span></td>
+      <td><input type="number" value="${c.leadTimeDays||''}" min="1"
+            onchange="updateComp(${c.id},'leadTimeDays',parseInt(this.value)||28)" style="width:80px;"/></td>
+      ${si}
+      <td><button class="btn-remove" onclick="removeComp(${c.id})">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+function addComponent(){const id=_compId++;components.push({id,name:'New Component',code:'',leadTimeDays:28});inv[id]={TMC:0,optioCA:0,optioColumbus:0};renderAll();}
+function removeComp(id){components=components.filter(c=>c.id!==id);delete inv[id];renderAll();}
+function updateComp(id,f,v){const c=components.find(c=>c.id===id);if(c){c[f]=v;renderDash();}}
+function updateBom(sid,cid,v){if(!bom[sid])bom[sid]={};bom[sid][cid]=v;renderDash();}
+
+// ═══════════════════════════════════════════════════
+//  Inventory table
+// ═══════════════════════════════════════════════════
+function renderInv(){
+  document.getElementById('invBody').innerHTML=components.map(c=>{
+    const ci=inv[c.id]||{TMC:0,optioCA:0,optioColumbus:0};
+    const total=LOCS.reduce((s,l)=>s+(ci[l]||0),0);
+    const lc=LOCS.map(l=>`<td><input type="number" value="${ci[l]||''}" min="0" placeholder="0"
+      onchange="updateInv(${c.id},'${l}',parseFloat(this.value)||0)" style="width:115px;"/></td>`).join('');
+    return `<tr>
+      <td style="font-weight:600;white-space:nowrap;">${esc(c.name)}</td>
+      <td class="center"><span class="comp-sku">${esc(c.code)}</span></td>
+      ${lc}
+      <td style="font-weight:700;">${total.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+}
+function updateInv(cid,loc,val){
+  if(!inv[cid])inv[cid]={TMC:0,optioCA:0,optioColumbus:0};
+  inv[cid][loc]=val;
+  renderInv();renderDash();
+}
+
+// ═══════════════════════════════════════════════════
+//  Dashboard
+// ═══════════════════════════════════════════════════
+function setTab(tab,el){activeTab=tab;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderDash();}
+
+function renderDash(){
+  const results=components.map(c=>calcComp(c));
+  const totalF=skus.reduce((s,sk)=>s+(sk.weeklyForecast||0),0);
+  const orderNow=results.filter(r=>r.flag==='order').length;
+  const planSoon=results.filter(r=>r.flag==='soon').length;
+  const xfers   =results.filter(r=>r.flag==='transfer').length;
+  const active  =results.filter(r=>r.flag!=='na').length;
+
+  const summary=`<div class="summary-bar">
+    <div class="summary-item">
+      <div class="s-label">Total Weekly Forecast</div>
+      <div class="s-val">${totalF.toLocaleString()}</div>
+      <div class="s-sub">${skus.filter(s=>s.weeklyForecast>0).length} active SKUs</div>
+    </div>
+    <div class="summary-item">
+      <div class="s-label">Order Now</div>
+      <div class="s-val" style="color:${orderNow>0?'#b91c1c':'#15803d'}">${orderNow}</div>
+      <div class="s-sub">below reorder point</div>
+    </div>
+    <div class="summary-item">
+      <div class="s-label">Plan Order</div>
+      <div class="s-val" style="color:${planSoon>0?'#92400e':'#15803d'}">${planSoon}</div>
+      <div class="s-sub">approaching reorder point</div>
+    </div>
+    <div class="summary-item">
+      <div class="s-label">Transfer Available</div>
+      <div class="s-val" style="color:${xfers>0?'#6d28d9':'#15803d'}">${xfers}</div>
+      <div class="s-sub">location imbalance</div>
+    </div>
+    <div class="summary-item">
+      <div class="s-label">Components Tracked</div>
+      <div class="s-val">${active}</div>
+      <div class="s-sub">of ${results.length} in BOM</div>
+    </div>
+  </div>`;
+
+  let tbl='';
+  if (activeTab==='all') {
+    tbl=`<table><thead><tr>
+      <th>Component</th><th class="center" style="width:110px;">SKU Code</th>
+      <th>Weekly Demand</th><th>Lead Time</th><th>Reorder Point</th><th>MOQ (1 mo)</th>
+      <th>TMC</th><th>Optio CA</th><th>Optio Columbus</th>
+      <th>Total On Hand</th><th>Days of Supply</th><th>Status</th><th>Suggested Action</th>
+    </tr></thead><tbody>${results.map(r=>{
+      const act=r.flag==='order'||r.flag==='soon'
+        ?`<span class="action-text action-order">Order ${fn(r.suggestedQty)} units</span>`
+        :r.flag==='transfer'
+          ?r.transfers.map(t=>`<span class="action-text action-transfer">${fn(t.qty)} · ${LOC_LABELS[t.from]} → ${LOC_LABELS[t.to]}</span>`).join('<br/>')
+          :'<span class="action-text action-none">—</span>';
+      return `<tr class="${rc(r.flag)}">
+        <td style="font-weight:600;white-space:nowrap;">${esc(r.comp.name)}</td>
+        <td class="center"><span class="comp-sku">${esc(r.comp.code)}</span></td>
+        <td>${r.weeklyDemand>0?fn(r.weeklyDemand)+'/wk':'<span style="color:#ccc">—</span>'}</td>
+        <td>${r.comp.leadTimeDays}d</td>
+        <td>${r.weeklyDemand>0?fn(r.rop):'<span style="color:#ccc">—</span>'}</td>
+        <td>${r.weeklyDemand>0?fn(r.moq):'<span style="color:#ccc">—</span>'}</td>
+        <td>${fn(r.ci.TMC)}</td><td>${fn(r.ci.optioCA)}</td><td>${fn(r.ci.optioColumbus)}</td>
+        <td style="font-weight:700;">${fn(r.totalOnHand)}</td>
+        <td>${r.weeklyDemand>0?dosBadge(r.totalDoS,r.comp.leadTimeDays):'<span style="color:#ccc">—</span>'}</td>
+        <td>${fh(r.flag)}</td><td>${act}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+  } else {
+    const loc=activeTab, ll=LOC_LABELS[loc];
+    tbl=`<table><thead><tr>
+      <th>Component</th><th class="center" style="width:110px;">SKU Code</th>
+      <th>Weekly Demand</th><th>Lead Time</th>
+      <th>${ll} On Hand</th><th>${ll} Days of Supply</th>
+      <th>Other Locs</th><th>Total On Hand</th><th>Status at ${ll}</th><th>Suggested Action</th>
+    </tr></thead><tbody>${results.map(r=>{
+      const loh=r.ci[loc]||0, ldos=r.locDoS[loc], lf=r.locFlags[loc];
+      const oth=LOCS.filter(l=>l!==loc).reduce((s,l)=>s+(r.ci[l]||0),0);
+      const rel=r.transfers.filter(t=>t.to===loc);
+      const act=lf==='transfer'&&rel.length
+        ?rel.map(t=>`<span class="action-text action-transfer">Transfer ${fn(t.qty)} from ${LOC_LABELS[t.from]}</span>`).join('<br/>')
+        :(lf==='order'||lf==='soon')
+          ?`<span class="action-text action-order">Order ${fn(r.moq)} units</span>`
+          :'<span class="action-text action-none">—</span>';
+      return `<tr class="${rc(lf)}">
+        <td style="font-weight:600;white-space:nowrap;">${esc(r.comp.name)}</td>
+        <td class="center"><span class="comp-sku">${esc(r.comp.code)}</span></td>
+        <td>${r.weeklyDemand>0?fn(r.weeklyDemand)+'/wk':'<span style="color:#ccc">—</span>'}</td>
+        <td>${r.comp.leadTimeDays}d</td>
+        <td style="font-weight:600;">${fn(loh)}</td>
+        <td>${r.weeklyDemand>0?dosBadge(ldos,r.comp.leadTimeDays):'<span style="color:#ccc">—</span>'}</td>
+        <td style="color:#888;">${fn(oth)}</td>
+        <td style="font-weight:700;">${fn(r.totalOnHand)}</td>
+        <td>${fh(lf)}</td><td>${act}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+  }
+
+  document.getElementById('dashBody').innerHTML=summary+`<div class="scroll-wrap">${tbl}</div>`;
+}
+
+function renderAll(){renderSkus();renderBom();renderInv();renderDash();}
+renderAll();
+</script>
+</body>
+</html>
