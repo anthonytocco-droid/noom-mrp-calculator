@@ -558,7 +558,7 @@ function buildAllBlock(comp) {
   rows += `<tr class="row-onhand" style="background:#f0f6ff;">
     <td class="col-label sticky-label" style="background:#f0f6ff;color:#1e40af;">On Hand</td>
     <td class="col-start sticky-start" style="background:#f0f6ff;"></td>
-    ${monthData.map(d=>`<td class="col-month ${valClass(d.oh)}" style="${d.oh<0?'background:#fff8f8':'d.oh===0?''':'background:#f0fdf4'}">${fv(d.oh)}</td>`).join('')}
+    ${monthData.map(d=>`<td class="col-month ${valClass(d.oh)}" style="${d.oh<0?'background:#fff8f8':d.oh===0?'':'background:#f0fdf4'}">${fv(d.oh)}</td>`).join('')}
   </tr>`;
 
   return rows;
