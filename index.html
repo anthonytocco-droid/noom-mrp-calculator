@@ -4,521 +4,722 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>MRP Reorder Calculator</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a1a2e; min-height: 100vh; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a1a2e; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-  .page-header { background: #1a1a2e; color: #fff; padding: 15px 28px; display: flex; align-items: center; justify-content: space-between; }
-  .page-header h1 { font-size: 16px; font-weight: 700; }
+  /* ── Header ── */
+  .page-header { background: #1a1a2e; color: #fff; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .page-header h1 { font-size: 15px; font-weight: 700; }
   .page-header a  { color: #7c9dc5; font-size: 11px; text-decoration: none; }
-  .page-header a:hover { color: #a8c4e0; }
 
-  .container { max-width: 1400px; margin: 0 auto; padding: 22px 18px; }
+  /* ── App layout ── */
+  .app { display: flex; flex: 1; overflow: hidden; }
 
-  .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); margin-bottom: 18px; overflow: hidden; }
-  .card-head { padding: 12px 18px; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .card-head h2 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #666; white-space: nowrap; }
-  .card-head-right { display: flex; align-items: center; gap: 8px; }
+  /* ── Sidebar ── */
+  .sidebar { width: 230px; flex-shrink: 0; background: #fff; border-right: 1px solid #e8eaed; display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-head { padding: 12px 14px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #aaa; border-bottom: 1px solid #eee; flex-shrink: 0; }
+  .comp-list { flex: 1; overflow-y: auto; }
+  .comp-item { padding: 9px 14px; cursor: pointer; border-bottom: 1px solid #f5f5f5; display: flex; align-items: center; gap: 8px; }
+  .comp-item:hover { background: #f8faff; }
+  .comp-item.active { background: #eff6ff; border-left: 3px solid #3b82f6; }
+  .comp-item.active .comp-item-name { color: #1d4ed8; }
+  .comp-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .comp-dot.ok     { background: #22c55e; }
+  .comp-dot.warn   { background: #f59e0b; }
+  .comp-dot.bad    { background: #ef4444; }
+  .comp-dot.na     { background: #d1d5db; }
+  .comp-item-name  { font-size: 11px; font-weight: 600; color: #374151; line-height: 1.3; }
+  .comp-item-code  { font-size: 9px; color: #9ca3af; }
 
-  .collapse-btn { background: none; border: none; cursor: pointer; color: #aaa; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
-  .collapse-btn:hover { background: #f5f5f5; color: #555; }
+  /* ── Main panel ── */
+  .main-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #999; padding: 8px 10px; border-bottom: 2px solid #eee; background: #fafafa; white-space: nowrap; }
-  th.center, td.center { text-align: center; }
-  td { padding: 7px 10px; border-bottom: 1px solid #f2f2f2; vertical-align: middle; }
-  tr:last-child td { border-bottom: none; }
-  tbody tr:hover td { background: #fafbff; }
+  /* ── Component header ── */
+  .comp-header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 12px 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .comp-header-left h2 { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+  .comp-header-left .sub { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+  .comp-header-right { display: flex; align-items: center; gap: 16px; }
+  .meta-field { display: flex; flex-direction: column; align-items: flex-end; }
+  .meta-label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #aaa; margin-bottom: 2px; }
+  .meta-input { border: 1px solid #e2e8f0; border-radius: 5px; padding: 3px 7px; font-size: 12px; font-weight: 600; width: 90px; text-align: right; font-family: inherit; outline: none; }
+  .meta-input:focus { border-color: #3b82f6; }
 
-  input[type=text], input[type=number] { border: 1px solid #e2e8f0; border-radius: 5px; padding: 4px 7px; font-size: 12px; width: 100%; outline: none; font-family: inherit; }
-  input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.1); }
-  input[type=number] { -moz-appearance: textfield; }
-  input[type=number]::-webkit-inner-spin-button { opacity: 0.4; }
+  /* ── Table wrapper ── */
+  .table-outer { flex: 1; overflow: auto; padding: 0; }
 
-  .btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 11px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; border: none; font-family: inherit; }
-  .btn:hover { opacity: 0.85; }
-  .btn-ghost  { background: #fff; border: 1px solid #ddd; color: #555; }
-  .btn-remove { background: none; border: none; color: #ddd; font-size: 13px; cursor: pointer; padding: 1px 5px; border-radius: 3px; line-height: 1; }
-  .btn-remove:hover { background: #fee2e2; color: #b91c1c; }
+  /* ── MRP table ── */
+  .mrp-table { border-collapse: collapse; font-size: 12px; min-width: max-content; }
+  .mrp-table th, .mrp-table td { padding: 0; white-space: nowrap; }
 
-  .flag { display: inline-flex; align-items: center; gap: 3px; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; white-space: nowrap; }
-  .flag-ok       { background: #dcfce7; color: #15803d; }
-  .flag-order    { background: #fee2e2; color: #b91c1c; }
-  .flag-soon     { background: #fef3c7; color: #92400e; }
-  .flag-transfer { background: #ede9fe; color: #6d28d9; }
-  .flag-na       { background: #f1f5f9; color: #94a3b8; }
+  /* Column widths */
+  .col-label { width: 200px; min-width: 200px; }
+  .col-start { width: 100px; min-width: 100px; text-align: right; }
+  .col-month { width: 90px; min-width: 90px; text-align: right; }
 
-  .dos { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 700; }
-  .dos-crit { background: #fee2e2; color: #b91c1c; }
-  .dos-warn { background: #fef3c7; color: #92400e; }
-  .dos-ok   { background: #dcfce7; color: #15803d; }
+  /* Sticky columns */
+  .sticky-label { position: sticky; left: 0; z-index: 3; }
+  .sticky-start { position: sticky; left: 200px; z-index: 3; }
 
-  tr.row-order > td { background: #fff8f8 !important; }
-  tr.row-soon  > td { background: #fffbeb !important; }
+  /* Header row */
+  .mrp-table thead tr th { background: #1a1a2e; color: #cdd; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; padding: 8px 10px; border-right: 1px solid #2d3748; }
+  .mrp-table thead .sticky-label { background: #1a1a2e; z-index: 4; }
+  .mrp-table thead .sticky-start { background: #1a1a2e; z-index: 4; }
 
-  .tab-bar { display: flex; border-bottom: 1px solid #eee; padding: 0 18px; background: #fff; overflow-x: auto; }
-  .tab { padding: 10px 15px; font-size: 12px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; color: #888; white-space: nowrap; flex-shrink: 0; }
-  .tab.active { color: #1a1a2e; border-bottom-color: #3b82f6; }
-  .tab:hover:not(.active) { color: #555; }
+  /* Location header rows */
+  .row-loc-head td { background: #2d3748; color: #e2e8f0; font-weight: 700; font-size: 12px; padding: 8px 10px; border-right: 1px solid #3d4f63; border-bottom: 1px solid #3d4f63; }
+  .row-loc-head .sticky-label { background: #2d3748; z-index: 2; }
+  .row-loc-head .sticky-start { background: #2d3748; z-index: 2; }
+  .row-loc-head .start-val { font-size: 13px; font-weight: 700; color: #e2e8f0; }
 
-  .summary-bar { display: flex; border-bottom: 1px solid #eee; overflow-x: auto; }
-  .summary-item { flex: 1; min-width: 130px; padding: 13px 18px; border-right: 1px solid #eee; }
-  .summary-item:last-child { border-right: none; }
-  .s-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: #aaa; margin-bottom: 3px; }
-  .s-val   { font-size: 20px; font-weight: 700; line-height: 1; }
-  .s-sub   { font-size: 10px; color: #bbb; margin-top: 2px; }
+  /* SKU forecast sub-rows */
+  .row-sku td { background: #f9fafb; color: #374151; padding: 5px 10px; border-right: 1px solid #eee; border-bottom: 1px solid #f3f4f6; font-size: 11px; }
+  .row-sku .sticky-label { background: #f9fafb; z-index: 2; padding-left: 22px; color: #6b7280; font-style: italic; }
+  .row-sku .sticky-start { background: #f9fafb; z-index: 2; }
 
-  .scroll-wrap { overflow-x: auto; }
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+  /* Replenishment row */
+  .row-replen td { background: #eff6ff; padding: 4px 6px; border-right: 1px solid #dbeafe; border-bottom: 1px solid #dbeafe; }
+  .row-replen .sticky-label { background: #eff6ff; z-index: 2; padding-left: 22px; font-size: 11px; font-weight: 600; color: #1d4ed8; padding-top: 5px; padding-bottom: 5px; }
+  .row-replen .sticky-start { background: #eff6ff; z-index: 2; }
 
-  .comp-sku  { font-size: 10px; color: #bbb; }
-  .action-text { font-size: 11px; }
-  .action-order    { color: #b91c1c; font-weight: 700; }
-  .action-transfer { color: #6d28d9; }
-  .action-none     { color: #ccc; }
+  /* Onhand row */
+  .row-onhand td { background: #fff; padding: 6px 10px; border-right: 1px solid #eee; border-bottom: 2px solid #e5e7eb; font-weight: 700; font-size: 12px; }
+  .row-onhand .sticky-label { background: #fff; z-index: 2; color: #374151; font-size: 11px; font-weight: 700; padding-left: 22px; }
+  .row-onhand .sticky-start { background: #fff; z-index: 2; }
+
+  /* Spacer row */
+  .row-spacer td { height: 8px; background: #f0f4f8; border: none; }
+  .row-spacer .sticky-label, .row-spacer .sticky-start { background: #f0f4f8; }
+
+  /* All Locations block */
+  .row-all-head td { background: #1e3a5f; color: #bfdbfe; font-weight: 700; font-size: 12px; padding: 8px 10px; border-right: 1px solid #2d4f7a; border-bottom: 1px solid #2d4f7a; }
+  .row-all-head .sticky-label { background: #1e3a5f; z-index: 2; }
+  .row-all-head .sticky-start { background: #1e3a5f; z-index: 2; }
+
+  /* Onhand value colors */
+  .val-pos { color: #15803d; }
+  .val-neg { color: #b91c1c; }
+  .val-zero { color: #6b7280; }
+
+  /* Replenishment inputs */
+  .rep-input { border: 1px solid #bfdbfe; border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; color: #1d4ed8; background: #fff; width: 82px; text-align: right; font-family: inherit; outline: none; }
+  .rep-input:focus { border-color: #3b82f6; background: #f0f9ff; }
+  .rep-input:hover { border-color: #93c5fd; }
+
+  /* Forecast inputs */
+  .fc-input { border: 1px solid transparent; border-radius: 4px; padding: 2px 6px; font-size: 11px; color: #374151; background: transparent; width: 82px; text-align: right; font-family: inherit; outline: none; }
+  .fc-input:focus { border-color: #d1d5db; background: #fff; }
+  .fc-input:hover { background: #f3f4f6; }
+
+  /* Starting inv inputs */
+  .start-input { border: none; background: transparent; font-size: 13px; font-weight: 700; color: #e2e8f0; width: 90px; text-align: right; font-family: inherit; outline: none; padding: 0 10px; }
+  .start-input::placeholder { color: #6b7280; font-weight: 400; font-size: 11px; }
+  .start-input:focus { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+  /* Empty state */
+  .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-size: 13px; }
+
+  /* Upload button */
+  .upload-btn { background: #2d4a6b; color: #bfdbfe; border: 1px solid #3b6fa0; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+  .upload-btn:hover { background: #3b5f85; }
+  #invFileInput { display: none; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1a1a2e; color: #e2e8f0; padding: 10px 20px; border-radius: 8px; font-size: 12px; font-weight: 600; z-index: 999; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  .toast.error { background: #7f1d1d; color: #fecaca; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #f1f1f1; }
+  ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
 </style>
 </head>
 <body>
 
 <div class="page-header">
   <h1>MRP Reorder Calculator</h1>
-  <a href="/workback">← Workback Calculator</a>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <button class="upload-btn" onclick="document.getElementById('invFileInput').click()">⬆ Upload Inventory</button>
+    <input type="file" id="invFileInput" accept=".xlsx,.xls,.csv" onchange="handleInventoryUpload(this)"/>
+    <a href="/workback">← Workback Calculator</a>
+  </div>
 </div>
+<div class="toast" id="toast"></div>
 
-<div class="container">
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-head">Components (35)</div>
+    <div class="comp-list" id="compList"></div>
+  </aside>
 
-  <div class="two-col">
-    <!-- SKU Forecast -->
-    <div class="card">
-      <div class="card-head">
-        <h2>SKU Weekly Forecast</h2>
-        <div class="card-head-right">
-          <span style="font-size:10px;color:#aaa;">units / week</span>
-          <button class="btn btn-ghost" onclick="addSku()">+ Add SKU</button>
-        </div>
-      </div>
-      <div class="scroll-wrap">
-        <table>
-          <thead><tr>
-            <th>SKU Name</th>
-            <th style="width:110px;">SKU Code</th>
-            <th style="width:130px;">Weekly Forecast</th>
-            <th style="width:28px;"></th>
-          </tr></thead>
-          <tbody id="skuBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Flag guide -->
-    <div class="card">
-      <div class="card-head"><h2>Flag Guide</h2></div>
-      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:10px;">
-        <div style="display:flex;align-items:flex-start;gap:10px;">
-          <span class="flag flag-order" style="flex-shrink:0;">🔴 Order Now</span>
-          <span style="font-size:11px;color:#555;line-height:1.4;">On-hand ≤ reorder point (lead time × daily demand). Place PO immediately.</span>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:10px;">
-          <span class="flag flag-soon" style="flex-shrink:0;">🟡 Plan Order</span>
-          <span style="font-size:11px;color:#555;line-height:1.4;">On-hand ≤ 1.5× reorder point. Order within the week to avoid stockout.</span>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:10px;">
-          <span class="flag flag-transfer" style="flex-shrink:0;">🔄 Transfer</span>
-          <span style="font-size:11px;color:#555;line-height:1.4;">One location low while another has surplus. Move inventory before ordering new stock.</span>
-        </div>
-        <div style="display:flex;align-items:flex-start;gap:10px;">
-          <span class="flag flag-ok" style="flex-shrink:0;">✓ OK</span>
-          <span style="font-size:11px;color:#555;line-height:1.4;">Sufficient stock on hand. No action needed.</span>
-        </div>
-        <div style="margin-top:4px;padding-top:10px;border-top:1px solid #eee;font-size:10px;color:#aaa;line-height:1.8;">
-          <strong style="color:#888;">Reorder Point</strong> = daily demand × lead time (days)<br/>
-          <strong style="color:#888;">MOQ</strong> = 4 weeks of demand (1 calendar month)<br/>
-          <strong style="color:#888;">Days of Supply</strong> = on hand ÷ daily demand
-        </div>
-      </div>
-    </div>
+  <!-- Main panel -->
+  <div class="main-panel" id="mainPanel">
+    <div class="empty-state">Select a component to view its projection</div>
   </div>
-
-  <!-- BOM -->
-  <div class="card">
-    <div class="card-head">
-      <h2>Bill of Materials &amp; Lead Times</h2>
-      <div class="card-head-right">
-        <span style="font-size:10px;color:#aaa;">Hover column headers for full SKU name · SKU codes shown</span>
-        <button class="btn btn-ghost" onclick="addComponent()">+ Add Component</button>
-        <button class="collapse-btn" id="bomToggle" onclick="toggleSection('bomContent','bomToggle')">▲</button>
-      </div>
-    </div>
-    <div id="bomContent" class="scroll-wrap">
-      <table><thead id="bomHead"></thead><tbody id="bomBody"></tbody></table>
-    </div>
-  </div>
-
-  <!-- Inventory -->
-  <div class="card">
-    <div class="card-head">
-      <h2>Current Inventory by Location</h2>
-      <div class="card-head-right">
-        <span style="font-size:10px;color:#aaa;">units on hand</span>
-        <button class="collapse-btn" id="invToggle" onclick="toggleSection('invContent','invToggle')">▲</button>
-      </div>
-    </div>
-    <div id="invContent" class="scroll-wrap">
-      <table>
-        <thead><tr>
-          <th>Component</th>
-          <th style="width:110px;" class="center">SKU Code</th>
-          <th style="width:130px;">TMC</th>
-          <th style="width:130px;">Optio CA</th>
-          <th style="width:130px;">Optio Columbus</th>
-          <th style="width:90px;">Total</th>
-        </tr></thead>
-        <tbody id="invBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Dashboard -->
-  <div class="card">
-    <div class="card-head"><h2>Reorder Dashboard</h2></div>
-    <div class="tab-bar">
-      <div class="tab active" onclick="setTab('all',this)">All Locations</div>
-      <div class="tab" onclick="setTab('TMC',this)">TMC</div>
-      <div class="tab" onclick="setTab('optioCA',this)">Optio CA</div>
-      <div class="tab" onclick="setTab('optioColumbus',this)">Optio Columbus</div>
-    </div>
-    <div id="dashBody"></div>
-  </div>
-
 </div>
 
 <script>
 // ═══════════════════════════════════════════════════
-//  State — pre-loaded from inflow BOMs.xlsx
+//  Month generation (12 months from Apr-26)
 // ═══════════════════════════════════════════════════
-let _skuId = 15, _compId = 36;
+function genMonths(n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date(2026, 3 + i, 1); // Apr 2026 + i
+    const label = d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}).replace(' ','-');
+    const days  = new Date(d.getFullYear(), d.getMonth()+1, 0).getDate();
+    out.push({label, days});
+  }
+  return out;
+}
+const MONTHS = genMonths(12);
 
-let skus = [
-  { id:1,  name:"OPTIO - GLP1 Tirzepatide Dispense",    code:"KIT-OPT-TIR-STD", weeklyForecast:0 },
-  { id:2,  name:"OPTIO - GLP1 Weight Dispense",          code:"KIT-OPT-GLP-STD", weeklyForecast:0 },
-  { id:3,  name:"TMC - GLP1 Proactive Health Dispense",  code:"KIT-TMC-GLP-PRO", weeklyForecast:0 },
-  { id:4,  name:"TMC - GLP1 Weight Dispense",            code:"KIT-TMC-GLP-STD", weeklyForecast:0 },
-  { id:5,  name:"TPH - HRT Dispense",                    code:"KIT-TPH-HRT",     weeklyForecast:0 },
-  { id:6,  name:"TPH - Liraglutide Trial",               code:"KIT-TPH-LIR",     weeklyForecast:0 },
-  { id:7,  name:"TPH - Oral Dispense 20 Dram",           code:"KIT-TPH-ORA-20",  weeklyForecast:0 },
-  { id:8,  name:"TPH - Oral Dispense 60 Dram",           code:"KIT-TPH-ORA-60",  weeklyForecast:0 },
-  { id:9,  name:"WELLSFL - GLP1 Weight Dispense",        code:"KIT-WFL-GLP-STD", weeklyForecast:0 },
-  { id:10, name:"WELLSTX - GLP1 Weight Dispense",        code:"KIT-WTX-GLP-STD", weeklyForecast:0 },
-  { id:11, name:"TMC - Tirzepatide Dispense",            code:"KIT-TMC-TIR-STD", weeklyForecast:0 },
-  { id:12, name:"Kitted Supplement - Men's Metabolic",   code:"KIT-SUP-MET-MEN", weeklyForecast:0 },
-  { id:13, name:"Kitted Supplement - Women's Metabolic", code:"KIT-SUP-MET-WOM", weeklyForecast:0 },
-  { id:14, name:"Summer Packout - GLP1 Weight Dispense", code:"KIT-GLP-SUM",     weeklyForecast:0 },
+// ═══════════════════════════════════════════════════
+//  Locations
+// ═══════════════════════════════════════════════════
+const locations = [
+  {id:'TMC',           name:'TMC'},
+  {id:'optioCA',       name:'Optio CA'},
+  {id:'optioColumbus', name:'Optio Columbus'},
+  {id:'wellsFL',       name:'Wells Ocala'},
+  {id:'wellsTX',       name:'Wells Dallas'},
+  {id:'tph',           name:'TPH'},
 ];
 
+// ═══════════════════════════════════════════════════
+//  SKUs — with location assignment
+// ═══════════════════════════════════════════════════
+let skus = [
+  {id:1,  name:"OPTIO - GLP1 Tirzepatide Dispense",    code:"KIT-OPT-TIR-STD", locId:'optioCA',       weeklyForecast:0},
+  {id:2,  name:"OPTIO - GLP1 Weight Dispense",          code:"KIT-OPT-GLP-STD", locId:'optioCA',       weeklyForecast:0},
+  {id:3,  name:"TMC - GLP1 Proactive Health Dispense",  code:"KIT-TMC-GLP-PRO", locId:'TMC',           weeklyForecast:0},
+  {id:4,  name:"TMC - GLP1 Weight Dispense",            code:"KIT-TMC-GLP-STD", locId:'TMC',           weeklyForecast:0},
+  {id:5,  name:"TPH - HRT Dispense",                    code:"KIT-TPH-HRT",     locId:'tph',           weeklyForecast:0},
+  {id:6,  name:"TPH - Liraglutide Trial",               code:"KIT-TPH-LIR",     locId:'tph',           weeklyForecast:0},
+  {id:7,  name:"TPH - Oral Dispense 20 Dram",           code:"KIT-TPH-ORA-20",  locId:'tph',           weeklyForecast:0},
+  {id:8,  name:"TPH - Oral Dispense 60 Dram",           code:"KIT-TPH-ORA-60",  locId:'tph',           weeklyForecast:0},
+  {id:9,  name:"WELLSFL - GLP1 Weight Dispense",        code:"KIT-WFL-GLP-STD", locId:'wellsFL',       weeklyForecast:0},
+  {id:10, name:"WELLSTX - GLP1 Weight Dispense",        code:"KIT-WTX-GLP-STD", locId:'wellsTX',       weeklyForecast:0},
+  {id:11, name:"TMC - Tirzepatide Dispense",            code:"KIT-TMC-TIR-STD", locId:'TMC',           weeklyForecast:0},
+  {id:12, name:"Kitted Supplement - Men's Metabolic",   code:"KIT-SUP-MET-MEN", locId:'optioColumbus', weeklyForecast:0},
+  {id:13, name:"Kitted Supplement - Women's Metabolic", code:"KIT-SUP-MET-WOM", locId:'optioColumbus', weeklyForecast:0},
+  {id:14, name:"Summer Packout - GLP1 Weight",          code:"KIT-GLP-SUM",     locId:'TMC',           weeklyForecast:0},
+];
+
+// ═══════════════════════════════════════════════════
+//  Components
+// ═══════════════════════════════════════════════════
 let components = [
-  { id:1,  name:"100 Unit Syringe",                        code:"ANC-SYR-100",     leadTimeDays:35 },
-  { id:2,  name:"Brown Corrugate Box - GLP",               code:"PKG-BOX-001",     leadTimeDays:35 },
-  { id:3,  name:"INTL Thermal Bag Large 2 Sided Print",    code:"PKG-BAG-002",     leadTimeDays:28 },
-  { id:4,  name:"Creative Ice 16 oz",                      code:"ANC-ICE-16C",     leadTimeDays:21 },
-  { id:5,  name:"Tirzepatide Booklet",                     code:"COL-TRZ-001",     leadTimeDays:21 },
-  { id:6,  name:"Orange Blister Box w/ 2R Tray",           code:"PKG-BOX-02R",     leadTimeDays:35 },
-  { id:7,  name:"50 Unit Syringe",                         code:"ANC-SYR-050",     leadTimeDays:35 },
-  { id:8,  name:"Optio GLP1 Booklet",                      code:"COL-OPT-001",     leadTimeDays:21 },
-  { id:9,  name:"Blue Rett Box",                           code:"PKG-RET-002",     leadTimeDays:35 },
-  { id:10, name:"GLP1 Booklet - Microdose + Personalized", code:"COL-GLP-001",     leadTimeDays:21 },
-  { id:11, name:"Fidelity Ice 16 oz",                      code:"ANC-ICE-16F",     leadTimeDays:21 },
-  { id:12, name:"4x6 Dual Dose Card - 50/100 unit",        code:"COL-GLP-050",     leadTimeDays:21 },
-  { id:13, name:"HRT Booklet",                             code:"COL-HRT-001",     leadTimeDays:21 },
-  { id:14, name:"Noom Bubble Mailer",                      code:"PKG-BUB-001",     leadTimeDays:21 },
-  { id:15, name:"Secure Packer Custom Cap",                code:"ANC-CAP-001",     leadTimeDays:21 },
-  { id:16, name:"Liraglutide Booklet",                     code:"COL-LIR-001",     leadTimeDays:21 },
-  { id:17, name:"Pen Needles",                             code:"ANC-PEN-432",     leadTimeDays:21 },
-  { id:18, name:"Metformin Booklet",                       code:"COL-MET-001",     leadTimeDays:21 },
-  { id:19, name:"Secure Packer 20 Dram",                   code:"ANC-DRM-020",     leadTimeDays:28 },
-  { id:20, name:"Secure Packer 60 Dram",                   code:"ANC-DRM-060",     leadTimeDays:28 },
-  { id:21, name:"4x6 How To Measure Your Dose Card",       code:"COL-GLP-046",     leadTimeDays:21 },
-  { id:22, name:"Supplement Corrugate Outer Shipper",      code:"PKG-SUP-OUT",     leadTimeDays:35 },
-  { id:23, name:"Supplement Collapsible Box",              code:"PKG-SUP-BOX",     leadTimeDays:35 },
-  { id:24, name:"Supplement Corrugated Board Insert",      code:"PKG-SUP-INS",     leadTimeDays:28 },
-  { id:25, name:"Bagged Metabolic AM - Men's",             code:"ANC-SUP-MEN-AM",  leadTimeDays:42 },
-  { id:26, name:"Bagged Metabolic PM - Men's",             code:"ANC-SUP-MEN-PM",  leadTimeDays:42 },
-  { id:27, name:"Frosted Glass Bottle - Men's AM",         code:"ANC-SUP-BOT-MAM", leadTimeDays:42 },
-  { id:28, name:"Frosted Glass Bottle - Men's PM",         code:"ANC-SUP-BOT-MPM", leadTimeDays:42 },
-  { id:29, name:"Bagged Metabolic AM - Women's",           code:"ANC-SUP-WOM-AM",  leadTimeDays:42 },
-  { id:30, name:"Bagged Metabolic PM - Women's",           code:"ANC-SUP-WOM-PM",  leadTimeDays:42 },
-  { id:31, name:"Frosted Glass Bottle - Women's AM",       code:"ANC-SUP-BOT-WAM", leadTimeDays:42 },
-  { id:32, name:"Frosted Glass Bottle - Women's PM",       code:"ANC-SUP-BOT-WPM", leadTimeDays:42 },
-  { id:33, name:"Kangaroo Mailer",                         code:"PKG-ROO-001",     leadTimeDays:28 },
-  { id:34, name:"Orange Bubble Mailer",                    code:"PKG-BUB-002",     leadTimeDays:21 },
-  { id:35, name:"Summer Brown Corrugate Box - GLP",        code:"PKG-BOX-002",     leadTimeDays:35 },
+  {id:1,  name:"100 Unit Syringe",                        code:"ANC-SYR-100",     leadTimeDays:35, itemCost:0},
+  {id:2,  name:"Brown Corrugate Box - GLP",               code:"PKG-BOX-001",     leadTimeDays:35, itemCost:0},
+  {id:3,  name:"INTL Thermal Bag Large 2 Sided Print",    code:"PKG-BAG-002",     leadTimeDays:28, itemCost:0},
+  {id:4,  name:"Creative Ice 16 oz",                      code:"ANC-ICE-16C",     leadTimeDays:21, itemCost:0},
+  {id:5,  name:"Tirzepatide Booklet",                     code:"COL-TRZ-001",     leadTimeDays:21, itemCost:0},
+  {id:6,  name:"Orange Blister Box w/ 2R Tray",           code:"PKG-BOX-02R",     leadTimeDays:35, itemCost:0},
+  {id:7,  name:"50 Unit Syringe",                         code:"ANC-SYR-050",     leadTimeDays:35, itemCost:0},
+  {id:8,  name:"Optio GLP1 Booklet",                      code:"COL-OPT-001",     leadTimeDays:21, itemCost:0},
+  {id:9,  name:"Blue Rett Box",                           code:"PKG-RET-002",     leadTimeDays:35, itemCost:0},
+  {id:10, name:"GLP1 Booklet - Microdose + Personalized", code:"COL-GLP-001",     leadTimeDays:21, itemCost:0},
+  {id:11, name:"Fidelity Ice 16 oz",                      code:"ANC-ICE-16F",     leadTimeDays:21, itemCost:0},
+  {id:12, name:"4x6 Dual Dose Card - 50/100 unit",        code:"COL-GLP-050",     leadTimeDays:21, itemCost:0},
+  {id:13, name:"HRT Booklet",                             code:"COL-HRT-001",     leadTimeDays:21, itemCost:0},
+  {id:14, name:"Noom Bubble Mailer",                      code:"PKG-BUB-001",     leadTimeDays:21, itemCost:0},
+  {id:15, name:"Secure Packer Custom Cap",                code:"ANC-CAP-001",     leadTimeDays:21, itemCost:0},
+  {id:16, name:"Liraglutide Booklet",                     code:"COL-LIR-001",     leadTimeDays:21, itemCost:0},
+  {id:17, name:"Pen Needles",                             code:"ANC-PEN-432",     leadTimeDays:21, itemCost:0},
+  {id:18, name:"Metformin Booklet",                       code:"COL-MET-001",     leadTimeDays:21, itemCost:0},
+  {id:19, name:"Secure Packer 20 Dram",                   code:"ANC-DRM-020",     leadTimeDays:28, itemCost:0},
+  {id:20, name:"Secure Packer 60 Dram",                   code:"ANC-DRM-060",     leadTimeDays:28, itemCost:0},
+  {id:21, name:"4x6 How To Measure Your Dose Card",       code:"COL-GLP-046",     leadTimeDays:21, itemCost:0},
+  {id:22, name:"Supplement Corrugate Outer Shipper",      code:"PKG-SUP-OUT",     leadTimeDays:35, itemCost:0},
+  {id:23, name:"Supplement Collapsible Box",              code:"PKG-SUP-BOX",     leadTimeDays:35, itemCost:0},
+  {id:24, name:"Supplement Corrugated Board Insert",      code:"PKG-SUP-INS",     leadTimeDays:28, itemCost:0},
+  {id:25, name:"Bagged Metabolic AM - Men's",             code:"ANC-SUP-MEN-AM",  leadTimeDays:42, itemCost:0},
+  {id:26, name:"Bagged Metabolic PM - Men's",             code:"ANC-SUP-MEN-PM",  leadTimeDays:42, itemCost:0},
+  {id:27, name:"Frosted Glass Bottle - Men's AM",         code:"ANC-SUP-BOT-MAM", leadTimeDays:42, itemCost:0},
+  {id:28, name:"Frosted Glass Bottle - Men's PM",         code:"ANC-SUP-BOT-MPM", leadTimeDays:42, itemCost:0},
+  {id:29, name:"Bagged Metabolic AM - Women's",           code:"ANC-SUP-WOM-AM",  leadTimeDays:42, itemCost:0},
+  {id:30, name:"Bagged Metabolic PM - Women's",           code:"ANC-SUP-WOM-PM",  leadTimeDays:42, itemCost:0},
+  {id:31, name:"Frosted Glass Bottle - Women's AM",       code:"ANC-SUP-BOT-WAM", leadTimeDays:42, itemCost:0},
+  {id:32, name:"Frosted Glass Bottle - Women's PM",       code:"ANC-SUP-BOT-WPM", leadTimeDays:42, itemCost:0},
+  {id:33, name:"Kangaroo Mailer",                         code:"PKG-ROO-001",     leadTimeDays:28, itemCost:0},
+  {id:34, name:"Orange Bubble Mailer",                    code:"PKG-BUB-002",     leadTimeDays:21, itemCost:0},
+  {id:35, name:"Summer Brown Corrugate Box - GLP",        code:"PKG-BOX-002",     leadTimeDays:35, itemCost:0},
 ];
 
 let bom = {
-  1:  {1:1,2:1,3:1,4:1,5:1},
-  2:  {6:1,7:1,2:1,3:1,4:1,8:1},
-  3:  {7:1,4:1,9:1,3:1,2:1,10:1,6:1},
-  4:  {7:1,11:1,9:1,3:1,2:1,10:1,12:1},
-  5:  {13:1,14:1,15:1},
-  6:  {16:1,17:1},
-  7:  {18:1,19:1,15:1,14:1},
-  8:  {18:1,20:1,15:1,14:1},
-  9:  {1:1,11:1,9:1,3:1,2:1,10:1,21:1},
-  10: {1:1,4:1,9:1,3:1,2:1,10:1,21:1},
-  11: {4:1,9:1,3:1,2:1,5:1,12:1,1:1},
-  12: {22:1,23:1,24:1,25:1,26:1,27:1,28:1},
-  13: {22:1,23:1,24:1,29:1,30:1,31:1,32:1},
-  14: {7:1,33:1,34:1,35:1,10:1,12:1},
+  1:{1:1,2:1,3:1,4:1,5:1},
+  2:{6:1,7:1,2:1,3:1,4:1,8:1},
+  3:{7:1,4:1,9:1,3:1,2:1,10:1,6:1},
+  4:{7:1,11:1,9:1,3:1,2:1,10:1,12:1},
+  5:{13:1,14:1,15:1},
+  6:{16:1,17:1},
+  7:{18:1,19:1,15:1,14:1},
+  8:{18:1,20:1,15:1,14:1},
+  9:{1:1,11:1,9:1,3:1,2:1,10:1,21:1},
+  10:{1:1,4:1,9:1,3:1,2:1,10:1,21:1},
+  11:{4:1,9:1,3:1,2:1,5:1,12:1,1:1},
+  12:{22:1,23:1,24:1,25:1,26:1,27:1,28:1},
+  13:{22:1,23:1,24:1,29:1,30:1,31:1,32:1},
+  14:{7:1,33:1,34:1,35:1,10:1,12:1},
 };
 
-let inv = {};
-components.forEach(c => { inv[c.id] = {TMC:0,optioCA:0,optioColumbus:0}; });
+// ═══════════════════════════════════════════════════
+//  Mutable state
+// ═══════════════════════════════════════════════════
+// startInv[locId][compId] = starting units on hand
+let startInv = {};
+// fcOverride[locId][skuId][monthIdx] = monthly units (overrides default)
+let fcOverride = {};
+// replen[locId][compId][monthIdx] = replenishment units
+let replen = {};
 
-let activeTab = 'all';
-const LOCS = ['TMC','optioCA','optioColumbus'];
-const LOC_LABELS = {TMC:'TMC', optioCA:'Optio CA', optioColumbus:'Optio Columbus'};
+let selectedCompId = null;
 
 // ═══════════════════════════════════════════════════
-//  Calculations
+//  Helpers
 // ═══════════════════════════════════════════════════
-function calcComp(comp) {
-  let weeklyDemand = 0;
-  skus.forEach(s => { weeklyDemand += (s.weeklyForecast||0) * ((bom[s.id]||{})[comp.id]||0); });
-  const daily = weeklyDemand / 7;
-  const rop   = Math.ceil(daily * comp.leadTimeDays);
-  const moq   = Math.ceil(weeklyDemand * 4);
-  const ci    = inv[comp.id] || {TMC:0,optioCA:0,optioColumbus:0};
-  const total = LOCS.reduce((s,l)=>s+(ci[l]||0),0);
-  const totalDoS = daily>0 ? total/daily : null;
-  const locDoS = {};
-  LOCS.forEach(l => { locDoS[l] = daily>0 ? (ci[l]||0)/daily : null; });
+function getStart(locId, compId) {
+  return ((startInv[locId] || {})[compId]) ?? '';
+}
+function setStart(locId, compId, val) {
+  if (!startInv[locId]) startInv[locId] = {};
+  startInv[locId][compId] = val;
+}
+function getFc(locId, skuId, mIdx) {
+  const ov = ((fcOverride[locId] || {})[skuId] || [])[mIdx];
+  if (ov !== undefined) return ov;
+  const sku = skus.find(s => s.id === skuId);
+  if (!sku || !sku.weeklyForecast) return 0;
+  return Math.round(sku.weeklyForecast * MONTHS[mIdx].days / 7);
+}
+function setFc(locId, skuId, mIdx, val) {
+  if (!fcOverride[locId]) fcOverride[locId] = {};
+  if (!fcOverride[locId][skuId]) fcOverride[locId][skuId] = [];
+  fcOverride[locId][skuId][mIdx] = val;
+}
+function getRep(locId, compId, mIdx) {
+  return ((replen[locId] || {})[compId] || [])[mIdx] || 0;
+}
+function setRep(locId, compId, mIdx, val) {
+  if (!replen[locId]) replen[locId] = {};
+  if (!replen[locId][compId]) replen[locId][compId] = [];
+  replen[locId][compId][mIdx] = val;
+}
 
-  let flag = 'ok';
-  if (daily===0) flag='na';
-  else if (total<=rop) flag='order';
-  else if (total<=rop*1.5) flag='soon';
-  else {
-    const low  = LOCS.filter(l=>locDoS[l]!==null&&locDoS[l]<comp.leadTimeDays);
-    const high = LOCS.filter(l=>locDoS[l]!==null&&locDoS[l]>comp.leadTimeDays*2&&(ci[l]||0)>0);
-    if (low.length&&high.length) flag='transfer';
+// Monthly component demand at a location
+function compDemand(locId, compId, mIdx) {
+  let d = 0;
+  skus.filter(s => s.locId === locId).forEach(s => {
+    const qty = (bom[s.id] || {})[compId] || 0;
+    if (qty) d += getFc(locId, s.id, mIdx) * qty;
+  });
+  return Math.round(d);
+}
+
+// Running onhand array for a location+component
+function runningOnhand(locId, compId) {
+  let oh = Number(getStart(locId, compId)) || 0;
+  return MONTHS.map((_, m) => {
+    oh = oh - compDemand(locId, compId, m) + getRep(locId, compId, m);
+    return oh;
+  });
+}
+
+// Format number: parentheses for negative, comma-separated
+function fv(n) {
+  if (n === '' || n === null || n === undefined) return '';
+  const v = Math.round(Number(n));
+  if (isNaN(v)) return '';
+  if (v === 0) return '0';
+  const abs = Math.abs(v).toLocaleString();
+  return v < 0 ? `(${abs})` : abs;
+}
+function valClass(n) {
+  if (!n && n !== 0) return '';
+  return n > 0 ? 'val-pos' : n < 0 ? 'val-neg' : 'val-zero';
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ═══════════════════════════════════════════════════
+//  Component status (for sidebar dot)
+// ═══════════════════════════════════════════════════
+function compStatus(compId) {
+  // Check if any location has projected stockout in first 3 months
+  let anyDemand = false;
+  let anyBad = false, anyWarn = false;
+  locations.forEach(loc => {
+    const oh = runningOnhand(loc.id, compId);
+    const hasDemand = oh.some((_, m) => compDemand(loc.id, compId, m) > 0);
+    if (!hasDemand) return;
+    anyDemand = true;
+    if (oh.slice(0,3).some(v => v < 0)) anyBad = true;
+    else if (oh.slice(0,6).some(v => v < 0)) anyWarn = true;
+  });
+  if (!anyDemand) return 'na';
+  if (anyBad) return 'bad';
+  if (anyWarn) return 'warn';
+  return 'ok';
+}
+
+// ═══════════════════════════════════════════════════
+//  Render sidebar
+// ═══════════════════════════════════════════════════
+function renderSidebar() {
+  const el = document.getElementById('compList');
+  el.innerHTML = components.map(c => {
+    const status = compStatus(c.id);
+    const active = c.id === selectedCompId ? ' active' : '';
+    return `<div class="comp-item${active}" onclick="selectComp(${c.id})">
+      <div class="comp-dot ${status}"></div>
+      <div>
+        <div class="comp-item-name">${esc(c.name)}</div>
+        <div class="comp-item-code">${esc(c.code)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════
+//  Render main panel
+// ═══════════════════════════════════════════════════
+function selectComp(compId) {
+  selectedCompId = compId;
+  renderSidebar();
+  renderMain();
+}
+
+function renderMain() {
+  const panel = document.getElementById('mainPanel');
+  if (!selectedCompId) {
+    panel.innerHTML = '<div class="empty-state">Select a component to view its projection</div>';
+    return;
   }
+  const comp = components.find(c => c.id === selectedCompId);
+  if (!comp) return;
 
-  const locFlags = {};
-  LOCS.forEach(l => {
-    if (daily===0) { locFlags[l]='na'; return; }
-    const donors = LOCS.filter(o=>o!==l&&locDoS[o]!==null&&locDoS[o]>comp.leadTimeDays*2&&(ci[o]||0)>0);
-    if (locDoS[l]<comp.leadTimeDays&&donors.length) locFlags[l]='transfer';
-    else if (locDoS[l]<comp.leadTimeDays)           locFlags[l]='order';
-    else if (locDoS[l]<comp.leadTimeDays*1.5)       locFlags[l]='soon';
-    else                                            locFlags[l]='ok';
-  });
+  // Month header columns
+  const monthCols = MONTHS.map(m => `<th class="col-month">${m.label}</th>`).join('');
 
-  const transfers = [];
-  LOCS.forEach(toLoc => {
-    if (locFlags[toLoc]!=='transfer') return;
-    const need = rop-(ci[toLoc]||0);
-    LOCS.filter(l=>l!==toLoc&&locDoS[l]>comp.leadTimeDays*2).forEach(donor=>{
-      const surplus = Math.floor((ci[donor]||0)-daily*comp.leadTimeDays*1.5);
-      if (surplus>0) transfers.push({from:donor,to:toLoc,qty:Math.min(need,surplus)});
-    });
-  });
+  // Build location blocks
+  const locBlocks = locations.map(loc => buildLocBlock(loc, comp)).join('');
 
-  const suggestedQty = (flag==='order'||flag==='soon') ? Math.max(moq,rop+moq-total) : 0;
-  return {comp,weeklyDemand,daily,rop,moq,totalOnHand:total,totalDoS,locDoS,locFlags,flag,suggestedQty,ci,transfers};
+  // All Locations block
+  const allBlock = buildAllBlock(comp);
+
+  panel.innerHTML = `
+    <div class="comp-header">
+      <div class="comp-header-left">
+        <h2>${esc(comp.name)}</h2>
+        <div class="sub">${esc(comp.code)}</div>
+      </div>
+      <div class="comp-header-right">
+        <div class="meta-field">
+          <span class="meta-label">Item Cost ($)</span>
+          <input class="meta-input" type="number" min="0" step="0.01"
+            value="${comp.itemCost || ''}" placeholder="0.00"
+            onchange="updateCompField(${comp.id},'itemCost',parseFloat(this.value)||0)"/>
+        </div>
+        <div class="meta-field">
+          <span class="meta-label">Lead Time (days)</span>
+          <input class="meta-input" type="number" min="1"
+            value="${comp.leadTimeDays}"
+            onchange="updateCompField(${comp.id},'leadTimeDays',parseInt(this.value)||28); renderSidebar();"/>
+        </div>
+      </div>
+    </div>
+    <div class="table-outer">
+      <table class="mrp-table">
+        <thead>
+          <tr>
+            <th class="col-label sticky-label" style="text-align:left;">Location / Row</th>
+            <th class="col-start sticky-start" style="text-align:right;">On Hand</th>
+            ${monthCols}
+          </tr>
+        </thead>
+        <tbody>
+          ${locBlocks}
+          ${allBlock}
+        </tbody>
+      </table>
+    </div>`;
 }
 
-// ═══════════════════════════════════════════════════
-//  Formatting
-// ═══════════════════════════════════════════════════
-function fn(n) { if(n===null||n===undefined||isNaN(n)) return '—'; return Math.round(n).toLocaleString(); }
-function dosBadge(d,lt) {
-  if(d===null||d===undefined) return '<span style="color:#ccc;">—</span>';
-  if(!isFinite(d)) return '<span class="dos dos-ok">∞</span>';
-  const v=Math.round(d), cls=v<lt?'dos-crit':v<lt*1.5?'dos-warn':'dos-ok';
-  return `<span class="dos ${cls}">${v}d</span>`;
-}
-const FC={ok:['flag-ok','✓ OK'],order:['flag-order','🔴 Order Now'],soon:['flag-soon','🟡 Plan Order'],transfer:['flag-transfer','🔄 Transfer'],na:['flag-na','—']};
-function fh(f){const[cls,lbl]=FC[f]||FC.na;return `<span class="flag ${cls}">${lbl}</span>`;}
-function rc(f){return f==='order'?'row-order':f==='soon'?'row-soon':'';}
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function buildLocBlock(loc, comp) {
+  // SKUs at this location that use this component
+  const locSkus = skus.filter(s => s.locId === loc.id && ((bom[s.id]||{})[comp.id]||0) > 0);
+  if (locSkus.length === 0) return ''; // skip locations with no demand
 
-function toggleSection(cid,bid){
-  const el=document.getElementById(cid),btn=document.getElementById(bid);
-  const hide=el.style.display!=='none';
-  el.style.display=hide?'none':'';
-  btn.textContent=hide?'▼':'▲';
-}
+  const startVal = getStart(loc.id, comp.id);
+  const ohArr    = runningOnhand(loc.id, comp.id);
 
-// ═══════════════════════════════════════════════════
-//  SKU table
-// ═══════════════════════════════════════════════════
-function renderSkus(){
-  document.getElementById('skuBody').innerHTML=skus.map(s=>`
-    <tr>
-      <td><input type="text" value="${esc(s.name)}" onchange="updateSku(${s.id},'name',this.value)"/></td>
-      <td><input type="text" value="${esc(s.code||'')}" onchange="updateSku(${s.id},'code',this.value)" style="font-size:10px;color:#888;"/></td>
-      <td><input type="number" value="${s.weeklyForecast||''}" min="0" placeholder="0"
-            onchange="updateSku(${s.id},'weeklyForecast',parseFloat(this.value)||0)" style="width:115px;"/></td>
-      <td><button class="btn-remove" onclick="removeSku(${s.id})">✕</button></td>
-    </tr>`).join('');
-}
-function addSku(){const id=_skuId++;skus.push({id,name:'New SKU',code:'',weeklyForecast:0});bom[id]={};renderAll();}
-function removeSku(id){if(skus.length<=1)return;skus=skus.filter(s=>s.id!==id);delete bom[id];renderAll();}
-function updateSku(id,f,v){const s=skus.find(s=>s.id===id);if(s){s[f]=v;renderDash();}}
+  // Location header row
+  const startCell = `<input class="start-input" type="number" min="0"
+    value="${startVal}" placeholder="0"
+    onchange="setStart('${loc.id}',${comp.id},parseFloat(this.value)||0); refreshOnhand('${loc.id}',${comp.id})"/>`;
 
-// ═══════════════════════════════════════════════════
-//  BOM table
-// ═══════════════════════════════════════════════════
-function renderBom(){
-  const skuCols=skus.map(s=>`<th class="center" style="width:60px;" title="${esc(s.name)}">${esc(s.code||s.name.substring(0,10))}</th>`).join('');
-  document.getElementById('bomHead').innerHTML=`<tr><th>Component</th><th style="width:110px;" class="center">SKU Code</th><th style="width:110px;">Lead Time (days)</th>${skuCols}<th style="width:28px;"></th></tr>`;
-  document.getElementById('bomBody').innerHTML=components.map(c=>{
-    const si=skus.map(s=>{
-      const q=(bom[s.id]||{})[c.id]||0;
-      return `<td class="center"><input type="number" value="${q||''}" min="0" placeholder="—"
-        onchange="updateBom(${s.id},${c.id},parseFloat(this.value)||0)"
-        style="width:50px;text-align:center;padding:3px 4px;"/></td>`;
+  let rows = `<tr class="row-loc-head">
+    <td class="col-label sticky-label">${esc(loc.name)}</td>
+    <td class="col-start sticky-start">${startCell}</td>
+    ${MONTHS.map(() => '<td class="col-month"></td>').join('')}
+  </tr>`;
+
+  // SKU forecast sub-rows
+  locSkus.forEach(sku => {
+    const bomQty = (bom[sku.id]||{})[comp.id]||0;
+    const cells = MONTHS.map((_, m) => {
+      const val = getFc(loc.id, sku.id, m) * bomQty;
+      return `<td class="col-month">
+        <input class="fc-input" type="number" min="0" value="${val||''}" placeholder="0"
+          onchange="setFcComp('${loc.id}',${sku.id},${comp.id},${bomQty},${m},this.value)"/>
+      </td>`;
     }).join('');
-    return `<tr>
-      <td style="font-weight:600;white-space:nowrap;">${esc(c.name)}</td>
-      <td class="center"><span class="comp-sku">${esc(c.code)}</span></td>
-      <td><input type="number" value="${c.leadTimeDays||''}" min="1"
-            onchange="updateComp(${c.id},'leadTimeDays',parseInt(this.value)||28)" style="width:80px;"/></td>
-      ${si}
-      <td><button class="btn-remove" onclick="removeComp(${c.id})">✕</button></td>
+    // Short SKU label
+    const label = sku.name.replace(/^(TMC|OPTIO|WELLSFL|WELLSTX|TPH) - /i,'').replace(/Dispense/i,'').trim();
+    rows += `<tr class="row-sku">
+      <td class="col-label sticky-label" title="${esc(sku.name)}">${esc(label)}</td>
+      <td class="col-start sticky-start"></td>
+      ${cells}
     </tr>`;
+  });
+
+  // Replenishment row
+  const repCells = MONTHS.map((_,m) => {
+    const val = getRep(loc.id, comp.id, m);
+    return `<td class="col-month">
+      <input class="rep-input" type="number" min="0" value="${val||''}" placeholder=""
+        onchange="setRep('${loc.id}',${comp.id},${m},parseFloat(this.value)||0); refreshOnhand('${loc.id}',${comp.id})"/>
+    </td>`;
   }).join('');
-}
-function addComponent(){const id=_compId++;components.push({id,name:'New Component',code:'',leadTimeDays:28});inv[id]={TMC:0,optioCA:0,optioColumbus:0};renderAll();}
-function removeComp(id){components=components.filter(c=>c.id!==id);delete inv[id];renderAll();}
-function updateComp(id,f,v){const c=components.find(c=>c.id===id);if(c){c[f]=v;renderDash();}}
-function updateBom(sid,cid,v){if(!bom[sid])bom[sid]={};bom[sid][cid]=v;renderDash();}
+  rows += `<tr class="row-replen">
+    <td class="col-label sticky-label">Replenishment</td>
+    <td class="col-start sticky-start"></td>
+    ${repCells}
+  </tr>`;
 
-// ═══════════════════════════════════════════════════
-//  Inventory table
-// ═══════════════════════════════════════════════════
-function renderInv(){
-  document.getElementById('invBody').innerHTML=components.map(c=>{
-    const ci=inv[c.id]||{TMC:0,optioCA:0,optioColumbus:0};
-    const total=LOCS.reduce((s,l)=>s+(ci[l]||0),0);
-    const lc=LOCS.map(l=>`<td><input type="number" value="${ci[l]||''}" min="0" placeholder="0"
-      onchange="updateInv(${c.id},'${l}',parseFloat(this.value)||0)" style="width:115px;"/></td>`).join('');
-    return `<tr>
-      <td style="font-weight:600;white-space:nowrap;">${esc(c.name)}</td>
-      <td class="center"><span class="comp-sku">${esc(c.code)}</span></td>
-      ${lc}
-      <td style="font-weight:700;">${total.toLocaleString()}</td>
-    </tr>`;
-  }).join('');
-}
-function updateInv(cid,loc,val){
-  if(!inv[cid])inv[cid]={TMC:0,optioCA:0,optioColumbus:0};
-  inv[cid][loc]=val;
-  renderInv();renderDash();
+  // Onhand row
+  const ohCells = ohArr.map(v => `<td class="col-month ${valClass(v)}" id="oh-${loc.id}-${comp.id}-${ohArr.indexOf(v)}">${fv(v)}</td>`).join('');
+  // (use data attributes for targeted refresh)
+  const ohCellsWithId = ohArr.map((v,m) => `<td class="col-month ${valClass(v)}" id="oh-${loc.id}-${comp.id}-${m}">${fv(v)}</td>`).join('');
+  rows += `<tr class="row-onhand">
+    <td class="col-label sticky-label">On Hand</td>
+    <td class="col-start sticky-start"></td>
+    ${ohCellsWithId}
+  </tr>`;
+
+  // Spacer
+  rows += `<tr class="row-spacer"><td class="col-label sticky-label"></td><td class="col-start sticky-start"></td>${MONTHS.map(()=>'<td></td>').join('')}</tr>`;
+
+  return rows;
 }
 
+function buildAllBlock(comp) {
+  // Aggregate across all locations
+  const allLocIds = locations.map(l=>l.id);
+
+  // Total starting inv
+  const totalStart = allLocIds.reduce((s,lid)=>s+(Number(getStart(lid,comp.id))||0),0);
+
+  // Per month: total demand, total replen, running onhand
+  let oh = totalStart;
+  const monthData = MONTHS.map((_,m) => {
+    const demand = allLocIds.reduce((s,lid)=>s+compDemand(lid,comp.id,m),0);
+    const rep    = allLocIds.reduce((s,lid)=>s+getRep(lid,comp.id,m),0);
+    oh = oh - demand + rep;
+    return {demand, rep, oh};
+  });
+
+  const monthCols = MONTHS.map((mo,m) => `
+    <th class="col-month" style="background:#243d5c;color:#93c5fd;font-size:10px;font-weight:700;padding:8px 10px;">${mo.label}</th>`).join('');
+
+  let rows = `<tr class="row-all-head">
+    <td class="col-label sticky-label">All Locations</td>
+    <td class="col-start sticky-start" style="font-size:13px;font-weight:700;color:#bfdbfe;padding-right:10px;text-align:right;">${totalStart.toLocaleString()||'—'}</td>
+    ${MONTHS.map(()=>'<td class="col-month"></td>').join('')}
+  </tr>`;
+
+  // Forecast row (total demand)
+  rows += `<tr class="row-sku">
+    <td class="col-label sticky-label">Forecast</td>
+    <td class="col-start sticky-start"></td>
+    ${monthData.map(d=>`<td class="col-month">${d.demand?d.demand.toLocaleString():''}</td>`).join('')}
+  </tr>`;
+
+  // Replenishment (total)
+  rows += `<tr class="row-replen">
+    <td class="col-label sticky-label">Replenishment</td>
+    <td class="col-start sticky-start"></td>
+    ${monthData.map(d=>`<td class="col-month">${d.rep?d.rep.toLocaleString():''}</td>`).join('')}
+  </tr>`;
+
+  // Onhand
+  rows += `<tr class="row-onhand" style="background:#f0f6ff;">
+    <td class="col-label sticky-label" style="background:#f0f6ff;color:#1e40af;">On Hand</td>
+    <td class="col-start sticky-start" style="background:#f0f6ff;"></td>
+    ${monthData.map(d=>`<td class="col-month ${valClass(d.oh)}" style="${d.oh<0?'background:#fff8f8':'d.oh===0?''':'background:#f0fdf4'}">${fv(d.oh)}</td>`).join('')}
+  </tr>`;
+
+  return rows;
+}
+
 // ═══════════════════════════════════════════════════
-//  Dashboard
+//  Targeted refresh (avoid full re-render on input)
 // ═══════════════════════════════════════════════════
-function setTab(tab,el){activeTab=tab;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderDash();}
+function refreshOnhand(locId, compId) {
+  const ohArr = runningOnhand(locId, compId);
+  ohArr.forEach((v, m) => {
+    const cell = document.getElementById(`oh-${locId}-${compId}-${m}`);
+    if (cell) {
+      cell.textContent = fv(v);
+      cell.className = `col-month ${valClass(v)}`;
+    }
+  });
+  renderSidebar(); // update status dots
+}
 
-function renderDash(){
-  const results=components.map(c=>calcComp(c));
-  const totalF=skus.reduce((s,sk)=>s+(sk.weeklyForecast||0),0);
-  const orderNow=results.filter(r=>r.flag==='order').length;
-  const planSoon=results.filter(r=>r.flag==='soon').length;
-  const xfers   =results.filter(r=>r.flag==='transfer').length;
-  const active  =results.filter(r=>r.flag!=='na').length;
+function setFcComp(locId, skuId, compId, bomQty, mIdx, rawVal) {
+  const val = (parseFloat(rawVal) || 0) / bomQty;
+  setFc(locId, skuId, mIdx, val);
+  refreshOnhand(locId, compId);
+}
 
-  const summary=`<div class="summary-bar">
-    <div class="summary-item">
-      <div class="s-label">Total Weekly Forecast</div>
-      <div class="s-val">${totalF.toLocaleString()}</div>
-      <div class="s-sub">${skus.filter(s=>s.weeklyForecast>0).length} active SKUs</div>
-    </div>
-    <div class="summary-item">
-      <div class="s-label">Order Now</div>
-      <div class="s-val" style="color:${orderNow>0?'#b91c1c':'#15803d'}">${orderNow}</div>
-      <div class="s-sub">below reorder point</div>
-    </div>
-    <div class="summary-item">
-      <div class="s-label">Plan Order</div>
-      <div class="s-val" style="color:${planSoon>0?'#92400e':'#15803d'}">${planSoon}</div>
-      <div class="s-sub">approaching reorder point</div>
-    </div>
-    <div class="summary-item">
-      <div class="s-label">Transfer Available</div>
-      <div class="s-val" style="color:${xfers>0?'#6d28d9':'#15803d'}">${xfers}</div>
-      <div class="s-sub">location imbalance</div>
-    </div>
-    <div class="summary-item">
-      <div class="s-label">Components Tracked</div>
-      <div class="s-val">${active}</div>
-      <div class="s-sub">of ${results.length} in BOM</div>
-    </div>
-  </div>`;
+function updateCompField(compId, field, val) {
+  const c = components.find(c => c.id === compId);
+  if (c) c[field] = val;
+}
 
-  let tbl='';
-  if (activeTab==='all') {
-    tbl=`<table><thead><tr>
-      <th>Component</th><th class="center" style="width:110px;">SKU Code</th>
-      <th>Weekly Demand</th><th>Lead Time</th><th>Reorder Point</th><th>MOQ (1 mo)</th>
-      <th>TMC</th><th>Optio CA</th><th>Optio Columbus</th>
-      <th>Total On Hand</th><th>Days of Supply</th><th>Status</th><th>Suggested Action</th>
-    </tr></thead><tbody>${results.map(r=>{
-      const act=r.flag==='order'||r.flag==='soon'
-        ?`<span class="action-text action-order">Order ${fn(r.suggestedQty)} units</span>`
-        :r.flag==='transfer'
-          ?r.transfers.map(t=>`<span class="action-text action-transfer">${fn(t.qty)} · ${LOC_LABELS[t.from]} → ${LOC_LABELS[t.to]}</span>`).join('<br/>')
-          :'<span class="action-text action-none">—</span>';
-      return `<tr class="${rc(r.flag)}">
-        <td style="font-weight:600;white-space:nowrap;">${esc(r.comp.name)}</td>
-        <td class="center"><span class="comp-sku">${esc(r.comp.code)}</span></td>
-        <td>${r.weeklyDemand>0?fn(r.weeklyDemand)+'/wk':'<span style="color:#ccc">—</span>'}</td>
-        <td>${r.comp.leadTimeDays}d</td>
-        <td>${r.weeklyDemand>0?fn(r.rop):'<span style="color:#ccc">—</span>'}</td>
-        <td>${r.weeklyDemand>0?fn(r.moq):'<span style="color:#ccc">—</span>'}</td>
-        <td>${fn(r.ci.TMC)}</td><td>${fn(r.ci.optioCA)}</td><td>${fn(r.ci.optioColumbus)}</td>
-        <td style="font-weight:700;">${fn(r.totalOnHand)}</td>
-        <td>${r.weeklyDemand>0?dosBadge(r.totalDoS,r.comp.leadTimeDays):'<span style="color:#ccc">—</span>'}</td>
-        <td>${fh(r.flag)}</td><td>${act}</td>
-      </tr>`;
-    }).join('')}</tbody></table>`;
-  } else {
-    const loc=activeTab, ll=LOC_LABELS[loc];
-    tbl=`<table><thead><tr>
-      <th>Component</th><th class="center" style="width:110px;">SKU Code</th>
-      <th>Weekly Demand</th><th>Lead Time</th>
-      <th>${ll} On Hand</th><th>${ll} Days of Supply</th>
-      <th>Other Locs</th><th>Total On Hand</th><th>Status at ${ll}</th><th>Suggested Action</th>
-    </tr></thead><tbody>${results.map(r=>{
-      const loh=r.ci[loc]||0, ldos=r.locDoS[loc], lf=r.locFlags[loc];
-      const oth=LOCS.filter(l=>l!==loc).reduce((s,l)=>s+(r.ci[l]||0),0);
-      const rel=r.transfers.filter(t=>t.to===loc);
-      const act=lf==='transfer'&&rel.length
-        ?rel.map(t=>`<span class="action-text action-transfer">Transfer ${fn(t.qty)} from ${LOC_LABELS[t.from]}</span>`).join('<br/>')
-        :(lf==='order'||lf==='soon')
-          ?`<span class="action-text action-order">Order ${fn(r.moq)} units</span>`
-          :'<span class="action-text action-none">—</span>';
-      return `<tr class="${rc(lf)}">
-        <td style="font-weight:600;white-space:nowrap;">${esc(r.comp.name)}</td>
-        <td class="center"><span class="comp-sku">${esc(r.comp.code)}</span></td>
-        <td>${r.weeklyDemand>0?fn(r.weeklyDemand)+'/wk':'<span style="color:#ccc">—</span>'}</td>
-        <td>${r.comp.leadTimeDays}d</td>
-        <td style="font-weight:600;">${fn(loh)}</td>
-        <td>${r.weeklyDemand>0?dosBadge(ldos,r.comp.leadTimeDays):'<span style="color:#ccc">—</span>'}</td>
-        <td style="color:#888;">${fn(oth)}</td>
-        <td style="font-weight:700;">${fn(r.totalOnHand)}</td>
-        <td>${fh(lf)}</td><td>${act}</td>
-      </tr>`;
-    }).join('')}</tbody></table>`;
+// ═══════════════════════════════════════════════════
+//  Toast helper
+// ═══════════════════════════════════════════════════
+let toastTimer = null;
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 4000);
+}
+
+// ═══════════════════════════════════════════════════
+//  Inventory file upload
+// ═══════════════════════════════════════════════════
+
+// Map inFlow location names → internal locId
+const LOC_PATTERNS = [
+  {patterns: ['tmc'],                              id: 'TMC'},
+  {patterns: ['optio ca', 'optio-ca', 'optio_ca'], id: 'optioCA'},
+  {patterns: ['optio columbus', 'columbus'],        id: 'optioColumbus'},
+  {patterns: ['wells ocala', 'ocala', 'wellsfl'],   id: 'wellsFL'},
+  {patterns: ['wells dallas', 'dallas', 'wellstx'], id: 'wellsTX'},
+  {patterns: ['tph'],                              id: 'tph'},
+];
+
+function matchLocId(name) {
+  const n = (name || '').toLowerCase().trim();
+  for (const entry of LOC_PATTERNS) {
+    if (entry.patterns.some(p => n.includes(p))) return entry.id;
   }
-
-  document.getElementById('dashBody').innerHTML=summary+`<div class="scroll-wrap">${tbl}</div>`;
+  return null;
 }
 
-function renderAll(){renderSkus();renderBom();renderInv();renderDash();}
-renderAll();
+function matchCompId(code, name) {
+  // Try exact code match
+  let c = components.find(c => c.code.toLowerCase() === (code || '').toLowerCase().trim());
+  if (c) return c.id;
+  // Try partial name match
+  if (name) {
+    const n = name.toLowerCase().trim();
+    c = components.find(c => c.name.toLowerCase() === n);
+    if (c) return c.id;
+  }
+  return null;
+}
+
+function handleInventoryUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = ''; // reset so same file can be re-uploaded
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let rows = [];
+
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        // CSV path
+        const text = new TextDecoder().decode(e.target.result);
+        const lines = text.split(/\r?\n/);
+        const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          const vals = lines[i].split(',').map(v => v.replace(/^"|"$/g,'').trim());
+          const row = {};
+          headers.forEach((h, j) => row[h] = vals[j] || '');
+          rows.push(row);
+        }
+      } else {
+        // XLSX path
+        const wb = XLSX.read(e.target.result, {type: 'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(ws, {defval: ''});
+      }
+
+      if (!rows.length) { showToast('No rows found in file', true); return; }
+
+      // Detect column names (case-insensitive)
+      const sampleKeys = Object.keys(rows[0]);
+      const findCol = (...terms) => sampleKeys.find(k => terms.some(t => k.toLowerCase().includes(t))) || null;
+
+      const colCode     = findCol('sku', 'code', 'item code', 'product code', 'part');
+      const colName     = findCol('product name', 'name', 'description', 'item name');
+      const colLocation = findCol('location', 'warehouse', 'site', 'facility');
+      const colOnHand   = findCol('on hand', 'onhand', 'qty on hand', 'stock', 'available', 'quantity');
+
+      if (!colLocation || !colOnHand) {
+        showToast('Could not detect Location and On-Hand columns', true);
+        return;
+      }
+
+      let matched = 0, skipped = 0;
+
+      rows.forEach(row => {
+        const locName  = row[colLocation];
+        const rawQty   = row[colOnHand];
+        const code     = colCode ? row[colCode] : '';
+        const name     = colName ? row[colName] : '';
+        const qty      = parseInt(String(rawQty).replace(/[^0-9-]/g, '')) || 0;
+
+        const locId  = matchLocId(locName);
+        const compId = matchCompId(code, name);
+
+        if (locId && compId) {
+          setStart(locId, compId, qty);
+          matched++;
+        } else {
+          skipped++;
+        }
+      });
+
+      // Re-render to reflect loaded values
+      renderSidebar();
+      if (selectedCompId) renderMain();
+
+      showToast(`Loaded ${matched} inventory records${skipped ? ` (${skipped} skipped)` : ''}`);
+    } catch (err) {
+      console.error(err);
+      showToast('Error reading file: ' + err.message, true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ═══════════════════════════════════════════════════
+//  Init
+// ═══════════════════════════════════════════════════
+renderSidebar();
 </script>
 </body>
 </html>
