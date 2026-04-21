@@ -608,13 +608,14 @@ function showToast(msg, isError) {
 // ═══════════════════════════════════════════════════
 
 // Map inFlow location names → internal locId
+// Order matters: more specific patterns first
 const LOC_PATTERNS = [
-  {patterns: ['tmc'],                              id: 'TMC'},
-  {patterns: ['optio ca', 'optio-ca', 'optio_ca'], id: 'optioCA'},
-  {patterns: ['optio columbus', 'columbus'],        id: 'optioColumbus'},
-  {patterns: ['wells ocala', 'ocala', 'wellsfl'],   id: 'wellsFL'},
-  {patterns: ['wells dallas', 'dallas', 'wellstx'], id: 'wellsTX'},
-  {patterns: ['tph'],                              id: 'tph'},
+  {patterns: ['optiorx/sbh', 'columbus'],                        id: 'optioColumbus'},
+  {patterns: ['optiorx', 'optio ca', 'glendale'],                id: 'optioCA'},
+  {patterns: ['tailor made', 'tmc'],                             id: 'TMC'},
+  {patterns: ['pharmacy hub', 'tph'],                            id: 'tph'},
+  {patterns: ['wells ocala', 'ocala', 'wellsfl', 'wells fl'],    id: 'wellsFL'},
+  {patterns: ['wells dallas', 'dallas', 'wellstx', 'wells tx'],  id: 'wellsTX'},
 ];
 
 function matchLocId(name) {
@@ -650,7 +651,7 @@ function handleInventoryUpload(input) {
 
       if (file.name.toLowerCase().endsWith('.csv')) {
         // CSV path
-        const text = new TextDecoder().decode(e.target.result);
+        const text = new TextDecoder('utf-8').decode(e.target.result).replace(/^\uFEFF/, '');
         const lines = text.split(/\r?\n/);
         const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
         for (let i = 1; i < lines.length; i++) {
@@ -690,7 +691,7 @@ function handleInventoryUpload(input) {
         const rawQty   = row[colOnHand];
         const code     = colCode ? row[colCode] : '';
         const name     = colName ? row[colName] : '';
-        const qty      = parseInt(String(rawQty).replace(/[^0-9-]/g, '')) || 0;
+        const qty      = Math.round(parseFloat(String(rawQty).replace(/,/g, '')) || 0);
 
         const locId  = matchLocId(locName);
         const compId = matchCompId(code, name);
