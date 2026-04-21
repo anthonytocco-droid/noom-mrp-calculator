@@ -4,7 +4,6 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>MRP Reorder Calculator</title>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a1a2e; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -142,7 +141,7 @@
   <h1>MRP Reorder Calculator</h1>
   <div style="display:flex;align-items:center;gap:16px;">
     <button class="upload-btn" onclick="document.getElementById('invFileInput').click()">⬆ Upload Inventory</button>
-    <input type="file" id="invFileInput" accept=".xlsx,.xls,.csv" onchange="handleInventoryUpload(this)"/>
+    <input type="file" id="invFileInput" accept=".csv" onchange="handleInventoryUpload(this)"/>
     <a href="/workback">← Workback Calculator</a>
   </div>
 </div>
@@ -639,82 +638,82 @@ function matchCompId(code, name) {
   return null;
 }
 
+function parseCSV(text) {
+  // Handles quoted fields with commas inside
+  const rows = [];
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+  const parseRow = line => {
+    const fields = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === ',' && !inQ) {
+        fields.push(cur.trim()); cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    fields.push(cur.trim());
+    return fields;
+  };
+  const headers = parseRow(lines[0]);
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const vals = parseRow(lines[i]);
+    const row = {};
+    headers.forEach((h, j) => row[h] = vals[j] || '');
+    rows.push(row);
+  }
+  return rows;
+}
+
 function handleInventoryUpload(input) {
   const file = input.files[0];
   if (!file) return;
-  input.value = ''; // reset so same file can be re-uploaded
+  input.value = '';
 
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      let rows = [];
-
-      if (file.name.toLowerCase().endsWith('.csv')) {
-        // CSV path
-        const text = new TextDecoder('utf-8').decode(e.target.result).replace(/^\uFEFF/, '');
-        const lines = text.split(/\r?\n/);
-        const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
-        for (let i = 1; i < lines.length; i++) {
-          if (!lines[i].trim()) continue;
-          const vals = lines[i].split(',').map(v => v.replace(/^"|"$/g,'').trim());
-          const row = {};
-          headers.forEach((h, j) => row[h] = vals[j] || '');
-          rows.push(row);
-        }
-      } else {
-        // XLSX path
-        const wb = XLSX.read(e.target.result, {type: 'array'});
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        rows = XLSX.utils.sheet_to_json(ws, {defval: ''});
-      }
+      const text = e.target.result;
+      const rows = parseCSV(text);
 
       if (!rows.length) { showToast('No rows found in file', true); return; }
 
-      // Detect column names (case-insensitive)
       const sampleKeys = Object.keys(rows[0]);
       const findCol = (...terms) => sampleKeys.find(k => terms.some(t => k.toLowerCase().includes(t))) || null;
 
       const colCode     = findCol('sku', 'code', 'item code', 'product code', 'part');
-      const colName     = findCol('product name', 'name', 'description', 'item name');
+      const colName     = findCol('productname', 'product name', 'name', 'description');
       const colLocation = findCol('location', 'warehouse', 'site', 'facility');
-      const colOnHand   = findCol('on hand', 'onhand', 'qty on hand', 'stock', 'available', 'quantity');
+      const colOnHand   = findCol('quantity', 'on hand', 'onhand', 'stock', 'available');
 
       if (!colLocation || !colOnHand) {
-        showToast('Could not detect Location and On-Hand columns', true);
+        showToast('Could not detect Location/Quantity columns', true);
         return;
       }
 
       let matched = 0, skipped = 0;
-
       rows.forEach(row => {
-        const locName  = row[colLocation];
-        const rawQty   = row[colOnHand];
-        const code     = colCode ? row[colCode] : '';
-        const name     = colName ? row[colName] : '';
-        const qty      = Math.round(parseFloat(String(rawQty).replace(/,/g, '')) || 0);
-
-        const locId  = matchLocId(locName);
-        const compId = matchCompId(code, name);
-
-        if (locId && compId) {
-          setStart(locId, compId, qty);
-          matched++;
-        } else {
-          skipped++;
-        }
+        const qty    = Math.round(parseFloat(String(row[colOnHand] || '0').replace(/,/g, '')) || 0);
+        const locId  = matchLocId(row[colLocation]);
+        const compId = matchCompId(colCode ? row[colCode] : '', colName ? row[colName] : '');
+        if (locId && compId) { setStart(locId, compId, qty); matched++; }
+        else skipped++;
       });
 
-      // Re-render to reflect loaded values
       renderSidebar();
       if (selectedCompId) renderMain();
-
-      showToast(`Loaded ${matched} inventory records${skipped ? ` (${skipped} skipped)` : ''}`);
+      showToast(`Loaded ${matched} inventory records${skipped ? ` (${skipped} unmatched)` : ''}`);
     } catch (err) {
       console.error(err);
-      showToast('Error reading file: ' + err.message, true);
+      showToast('Error: ' + err.message, true);
     }
   };
-  reader.readAsArrayBuffer(file);
+  reader.readAsText(file, 'utf-8');
 }
 
 // ═══════════════════════════════════════════════════
