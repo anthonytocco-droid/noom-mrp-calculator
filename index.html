@@ -416,7 +416,7 @@ function renderSkuPanel() {
         <div class="sku-fc-row">
           <span class="sku-fc-label">Wkly Forecast</span>
           <input class="sku-fc-input" type="number" min="0" value="${sku.weeklyForecast||''}" placeholder="0"
-            onchange="updateSkuForecast(${sku.id}, parseFloat(this.value)||0)"/>
+            oninput="updateSkuForecast(${sku.id}, parseFloat(this.value)||0)"/>
         </div>
       </div>`;
     });
@@ -428,7 +428,17 @@ function updateSkuForecast(skuId, val) {
   const sku = skus.find(s => s.id === skuId);
   if (sku) sku.weeklyForecast = val;
   renderSidebar();
-  if (selectedCompId) renderMain();
+  if (selectedCompId) {
+    renderMain();
+  } else {
+    // Auto-navigate: switch to Components tab and open first component this SKU uses
+    const bomEntry = bom[skuId];
+    if (bomEntry) {
+      const firstCompId = parseInt(Object.keys(bomEntry)[0]);
+      switchTab('comps');
+      selectComp(firstCompId);
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════
